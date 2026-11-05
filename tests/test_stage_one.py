@@ -89,9 +89,16 @@ def test_talent_idempotency_isolation_and_constraints(ctx):
     assert a.json()['data']['id'] == b.json()['data']['id']
     assert c.post('/api/talents', headers=headers, json={**body, 'name':'不同内容'}).status_code == 409
     assert c.post('/api/talents', headers={**h['admin'],'Idempotency-Key':'same-key'}, json=body).status_code == 403
+    other = c.post('/api/admin/users', headers=h['admin'], json={'username':'synthetic.hr2','password':'synthetic-test-pass'}).json()['data']
+    with Session() as db:
+        hr_role = db.scalar(select(UserRole.role_id).where(UserRole.user_id == ids['demo.hr']))
+    assert c.patch(f'/api/admin/users/{other["id"]}', headers=h['admin'], json={'version':1,'enabled':True,'talent_id':None,'role_ids':[hr_role]}).status_code == 200
+    login = c.post('/api/auth/login', json={'username':'synthetic.hr2','password':'synthetic-test-pass'}).json()['data']
+    second = c.post('/api/talents', headers={'Authorization':'Bearer '+login['token'],'Idempotency-Key':'same-key'}, json=body)
+    assert second.status_code == 201 and second.json()['data']['id'] != a.json()['data']['id']
     assert c.post('/api/talents', headers={**h['demo.hr'],'Idempotency-Key':'other'}, json={**body,'department_id':internal}).status_code == 422
     with Session() as db:
-        assert db.scalar(select(func.count()).select_from(Idempotency).where(Idempotency.action == 'talent.create')) == 1
+        assert db.scalar(select(func.count()).select_from(Idempotency).where(Idempotency.action == 'talent.create')) == 2
 
 def test_upload_validation_idempotency_and_paths(ctx):
     c,h,ids,internal,external = ctx

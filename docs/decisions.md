@@ -4,6 +4,8 @@
 原 PRD 保留冻结原文；本记录构成开发基线补充，不代表原文已被编辑。后续可由独立版本统一修订。
 
 ## 已确认的技术决定
+本次启动补充（2026-11-05）：用户明确要求本人账号公开仓库，覆盖默认私有约定；已创建 yujie-213/ai-talent-platform。仅代码、设计与合成测试输入入库，秘密/原文件/本机数据仍排除。核实后以本机 MySQL 8.4.11 / Redis 6.2.24 固定摘要创建独立卷/端口，不升级原有服务；Windows 使用 Anaconda Python 3.13.5 的项目隔离环境。
+
 - D01 模块化单体；FastAPI API 与独立 Celery Worker 共用业务代码。
 - D02 Vue 3、TypeScript、Element Plus；FastAPI、SQLAlchemy、Alembic、MySQL；Celery/Redis；Milvus；LangGraph。
 - D03 文件先使用受保护本地目录与持久化卷，原文件访问必须后端鉴权。

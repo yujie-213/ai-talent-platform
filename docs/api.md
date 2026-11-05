@@ -9,7 +9,7 @@
 | GET/POST /admin/users | 账号列表 / username,password,department_id | account.manage |
 | PATCH /admin/users/{id} | version,enabled,role_ids,talent_id | account.manage；绑定唯一；不能禁用最后管理入口由运维负责 |
 | GET/POST /admin/roles | 角色及动作范围授权 | account.manage |
-| PUT /admin/roles/{id}/grants | 完整替换 grants | account.manage；范围校验；即时生效 |
+| PUT /admin/roles/{id}/grants | version + 完整替换 grants | account.manage；原子版本冲突；范围校验；即时生效 |
 | GET /catalog | 部门、公司岗位、部门岗位、人才库 | 有效账号；仅组织基础数据 |
 | POST /catalog/{kind} | departments/positions/pools:name；department_positions:两个 FK | catalog.manage |
 | GET /talents | offset/limit（<=100） -> 范围内记录及 total | talent.read |
@@ -19,7 +19,7 @@
 | POST /talents/{id}/files | multipart file | file.write；Idempotency-Key；校验前鉴权 |
 | GET /talents/{id}/files | 文件元信息 | file.read |
 | GET /files/{id}/download | attachment 字节 | file.read；禁止路径参数 |
-| POST /files/{id}/test-tasks | mode success/fail | task.run；Idempotency-Key；202，仅验证机制 |
+| POST /files/{id}/test-tasks | mode success/fail/fail_once/recover_once | task.run；Idempotency-Key；202，仅验证机制；fail_once 首次失败，recover_once 首版本等待 12 秒用于强杀验证 |
 | GET /tasks /tasks/{id} | 当前授权内任务/attempt | talent.read；读取时重新授权 |
 | POST /tasks/{id}/retry | version | task.run；failed 且版本匹配；202 |
 | GET /admin/audit | 分页元数据 | audit.read |

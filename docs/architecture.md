@@ -1,24 +1,28 @@
-# 模块导航（初始化版）
+# 模块导航
 
-状态：目前仅有文档，以下是建议职责，不是已存在的实现路径。第一位执行者建立代码后替换为真实入口。
+模块化单体；Windows API / Vue 前端，Linux Celery Worker 与独立 dispatcher 共用后端代码。MySQL 为业务权威源，Redis 仅投递。当前不接入 LangGraph/Milvus/OCR/模型。
 
-| 模块 | 职责 | 建议位置 |
-|---|---|---|
-| 前端 | 登录、人才列表/详情/编辑、后续业务页面 | frontend/ |
-| API | HTTP 路由、入参出参、请求身份 | backend/app/api/ |
-| 权限与公共能力 | 当前授权、范围、字段、日志、配置、错误 | backend/app/core/ |
-| 业务服务 | 人才、岗位需求、任务、文件、测评、匹配、聊天 | backend/app/services/ |
-| 数据访问 | 查询与持久化 | backend/app/repositories/ |
-| 模型和契约 | 数据表、输入输出结构 | backend/app/models/、schemas/ |
-| 后台任务 | Celery、投递、重试、恢复 | backend/app/tasks/ |
-| AI 流程 | 模型适配、OCR、检索、LangGraph | backend/app/ai/ |
-| 迁移 | 数据库结构版本 | backend/alembic/ 或实际采用位置 |
-| 基础服务 | Compose 与部署配置 | infra/ |
-| 测试 | 权限、业务、任务及集成验证 | tests/ 或模块内测试目录 |
+| 入口 | 职责 |
+|---|---|
+| backend/app/main.py | API 启动、统一错误/追踪、安全日志 |
+| backend/app/api/routes.py | HTTP 契约、依赖注入、响应及下载 |
+| backend/app/core/security.py | 当前身份、独立动作范围、默认拒绝 |
+| backend/app/core/config.py、db.py | 本机配置、会话；无启动建表 |
+| backend/app/services/application.py | 账号/基础资料/人才/文件/任务业务编排及事务 |
+| backend/app/services/business.py | 档案约束、原子版本、历史、幂等、审计 |
+| backend/app/repositories/access.py | 当前授权、人才分页/事实/历史读取 |
+| backend/app/services/files.py | 类型/大小校验、路径规范化 |
+| backend/app/models/entities.py、schemas/inputs.py | 实体、约束与入参 |
+| backend/app/tasks/worker.py | Celery、领取/成果屏障、投递/恢复 |
+| backend/app/cli.py | 引导/合成数据、补偿器 |
+| backend/alembic/versions/ | 初始建表与角色版本迁移 |
+| frontend/src/App.vue、style.css | 登录/人才/文件/任务/最小管理页面 |
+| infra/compose.yml、Dockerfile | 隔离 MySQL/Redis/Worker/dispatcher |
+| tests/test_stage_one.py、test_additional.py | 权限、文件、任务、并发等 15 项回归 |
+| scripts/test-mysql.py | 随机独立库真实迁移回归，不清空开发库 |
+| scripts/test-worker-live.py | 真正 Broker 中断、容器强杀恢复验证 |
+| frontend/scripts/smoke.mjs | 本机 Edge 页面验收 |
 
-## 导航维护规则
-- 真实实现后记录各模块核心入口、公共接口、依赖和对应测试。
-- 当前任务只查相关模块；更改公共权限/状态/表结构时查看所有相关调用方。
-- 不粘贴大段代码，不维护逐函数目录；通过路径与符号定位。
-- 后续阶段未开发模块只作为计划，不创建伪功能或空页面宣称完成。
+首版应用服务部分简单管理读写仍直接使用 SQLAlchemy 会话；关键范围查询集中在 Repository，路由不持有业务 SQL。后续相关模块扩展时按职责提取，避免空架构抽象。
 
+表关系见 schema.md，端点见 api.md；接手先读 progress.md / handoff.md。修改公共权限时同时检查业务、文件与任务调用方。

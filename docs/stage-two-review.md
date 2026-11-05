@@ -1,6 +1,6 @@
 # 第二阶段审查问题修复
 
-2026-11-05，北京时间；审查基线646a562，分支codex/stage-two-resume。三个反馈均已复现，阶段仍为待用户验收，不进入第三阶段。
+2026-11-05，北京时间；审查基线646a562，分支codex/stage-two-resume。三个反馈均已复现，本阶段已于2026-11-05获李玉杰明确验收通过，第三阶段仍未启动。
 
 ## 修复与原因
 
@@ -27,3 +27,6 @@ Worker/indexer镜像更新为ai-talent-stage2-backend:0.2.1，业务API和后台
 验收可重复操作：将同一文件的一个任务关联目标档案，收窄到原档案范围，旧原文接口应404；删除最后一个技能并保存，再解析应只给建议；构造21条持续失败事件，连续补偿不会重复占满前20条，后续事件能推进。
 
 通用Worker来源校验收尾回归：`.venv/Scripts/python.exe -m pytest tests/test_stage_one.py tests/test_stage_two_review.py -q --tb=short`，SQLite17 passed /63.89s；`.venv/Scripts/python.exe scripts/test-mysql.py tests/test_stage_one.py tests/test_stage_two_review.py`，MySQL17 passed /103.25s。MySQL脚本现支持透传pytest选择参数，默认仍运行全套。
+
+## 阶段验收决定（2026-11-05）
+李玉杰实际试用了页面和测试简历，并明确要求将第二阶段审查标记通过。该结论覆盖核心技术链路与三项审查修复，不等于页面操作体验通过无缺陷，也不宣称整体OCR/抽取准确率。已知后续优化：页面流程不顺畅，大量“未确认”标签混淆提取可信度、来源与技能真实性；不应让HR机械地逐项确认技能，真实性应在面试或测评环节核验。优化时保留人工修改防覆盖保护，避免单纯隐藏标记。第三阶段未获启动授权，分支不自动合并main。

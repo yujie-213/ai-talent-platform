@@ -2,8 +2,17 @@
 
 2026-11-05，北京时间。李玉杰已确认第一阶段验收通过；第二阶段已完成本轮开发和本机验证，**待用户验收**，不进入第三阶段。
 
+## 本轮审查修复交接
+- 审查基线646a562，仍使用codex/stage-two-resume；本轮修复代码c7b8f88，最后文档提交通过git log核实；未合并main。
+- 旧解析结果必须同时满足Task与File当前talent_id一致及当前读权限；关联后不更新所有旧任务的授权，旧任务返回404。执行、提交、重试、关联、批次与索引引用同步收紧，通用机制任务也检查来源。
+- 人工保存为5类事实集合单独保存确认（包括空集合），resume_tasks依标记只保存建议；不是依据剩余Fact行猜测清空意图。
+- e973ff14b005新增索引调度字段/索引并回填历史类别确认；历史业务明细不自动清理。迁移已在SQLite和MySQL验证并应用开发库，不改写共享迁移。
+- 索引失败退避30/60/120秒起、最多1小时；600秒领取租约、单调领取版本、到期时间公平排序；显式重建使旧领取失效，外部调用无长事务。
+- 当前项目镜像ai-talent-stage2-backend:0.2.1；依赖和模型未升级，其他应用服务未修改。完整SQLite/MySQL均46通过，复现/实际命令/替身/限制见stage-two-review.md。
+- 仍为第二阶段待用户验收；仅处理本阶段反馈，不能自动进入第三阶段。收尾工作区/远端状态见最终汇报。
+
 ## Git与工作区
-- 分支codex/stage-two-resume；基线main 7dbdb86。实现提交76b46c3，收尾代码1dff35e。最后文档提交通过git log核对，避免自引用循环。
+- 分支codex/stage-two-resume；基线main 7dbdb86。原交付76b46c3/1dff35e，本轮审查修复代码c7b8f88。最后文档提交通过git log核对，避免自引用循环。
 - 现有远端https://github.com/yujie-213/ai-talent-platform；正常推送当前开发分支，不强推。main仍为第一阶段验收基线，未自动合并。
 - 代码与文档已分步提交；收尾git status/远端核对见最终汇报。原始工作区干净，未混入他人修改。
 - .env由用户本机配置生成模型；本轮只补本地Embedding摘要锁。没有输出密钥，也不提交.env/data/.tools/样本原文件/截图。提交前扫描实际本机秘密值无命中。
@@ -19,8 +28,8 @@
 
 ## 运行与迁移
 - API http://127.0.0.1:8000；页面 http://127.0.0.1:5173。账号在本机data/local-access.txt，勿贴聊天/勿提交。
-- 迁移新增b640cc81b002、c751dd92b003、d862ee03b004；已在随机MySQL库验证并应用开发库，无重置、删除、历史迁移改写或启动自动迁移。
-- infra/compose.yml + compose.stage2.yml合用。Worker镜像ai-talent-stage2-backend:0.2.0；dispatcher与indexer共享代码，indexer每30秒补偿；API与前端本机运行。启动/重载命令见README第二阶段小节。
+- 迁移新增b640cc81b002、c751dd92b003、d862ee03b004、e973ff14b005；已在随机MySQL库验证并应用开发库，无重置、删除、历史迁移改写或启动自动迁移。
+- infra/compose.yml + compose.stage2.yml合用。Worker镜像ai-talent-stage2-backend:0.2.1；dispatcher与indexer共享代码，indexer每30秒补偿；API与前端本机运行。启动/重载命令见README第二阶段小节。
 - Paddle3.2.0/PaddleOCR3.3.2 CPU mobile在/opt/ocr隔离环境；Windows评测在.tools/ocr-venv。包锁见requirements-ocr.lock.txt，文档样本生成依赖见requirements-evaluation.txt。
 - Ollama bge-m3当前1024维；摘要在本机.env，改模型需新索引重建，不混空间。既有Milvus/Dify/Conda/Ollama/Neo4j未升级或重置。
 

@@ -9,7 +9,7 @@ os.environ['DATABASE_URL']='sqlite:///data/stage-two-evaluation/index-live-'+key
 from app.core.db import Base, engine, Session
 from app.models.entities import Talent, IndexEvent, User
 from app.cli import seed
-from app.services.resume_index import compensate_indexes, scoped_index_filter, COLLECTION
+from app.services.resume_index import compensate_indexes, scoped_index_filter, COLLECTION, request_reindex
 from sqlalchemy import select
 import httpx
 Base.metadata.create_all(engine)  # 仅此脚本的全新隔离合成库，不用于应用启动。
@@ -22,6 +22,9 @@ os.environ['OLLAMA_URL']='http://127.0.0.1:9'
 assert compensate_indexes()==0
 with Session() as db: assert db.scalar(select(IndexEvent)).state=='failed'
 os.environ['OLLAMA_URL']=original_url
+with Session() as db:
+    user=db.scalar(select(User).where(User.username=='demo.hr'))
+    request_reindex(db,user,key,1,'synthetic-index-retry-after-service-restored')
 assert compensate_indexes()==1
 client=httpx.Client(base_url=os.getenv('MILVUS_URL','http://127.0.0.1:19530'),timeout=30,trust_env=False)
 def query(user_name):

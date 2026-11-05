@@ -1,6 +1,13 @@
 """权限相关数据访问；范围的业务含义由 core.security 决定。"""
 from sqlalchemy import select, func, not_, and_
-from app.models.entities import Grant, UserRole, Talent, Fact, TalentHistory, Task
+from app.models.entities import Grant, UserRole, Talent, Fact, TalentHistory, Task, File
+
+
+def current_task_file(db, task: Task, lock: bool = False) -> File | None:
+    """文件当前归属才是来源边界，旧任务不能借旧人才ID读取已移走的材料。"""
+    query = select(File).where(File.id == task.file_id).execution_options(populate_existing=True)
+    source = db.scalar(query.with_for_update() if lock else query)
+    return source if source and source.talent_id == task.talent_id else None
 
 
 def effective_talent_clause():

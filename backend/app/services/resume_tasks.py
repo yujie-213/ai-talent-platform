@@ -7,7 +7,8 @@ from sqlalchemy import select, update, func
 from app.core.db import Session
 from app.core.security import talent_access, allowed, fail, scope_clause
 from app.models.entities import File, Task, Outbox, ResumeRecord, User, Talent, Attempt, Fact, TalentHistory, IndexEvent, ImportFailure, uid
-from app.services.business import row, existing, remember, audit, digest
+from app.services.business import row, existing, remember, audit, digest, FACT_CATEGORIES
+from app.repositories.access import current_task_file
 from app.services.files import safe_path
 from app.services.resume_reader import read_resume, ResumeError
 from app.services.resume_providers import paddle_ocr, extract_fields
@@ -88,8 +89,10 @@ async def import_resume(db: DbSession, user: User, file, key: str, batch_id: str
 
 def batch_result(db: DbSession, user: User, batch_id: str) -> dict:
     tasks = list(db.scalars(select(Task).join(ResumeRecord, ResumeRecord.task_id == Task.id)
+        .join(File, File.id == Task.file_id)
         .join(Talent, Talent.id == Task.talent_id).where(ResumeRecord.batch_id == batch_id,
-            Task.created_by == user.id, scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read'))))
+            File.talent_id == Task.talent_id, Task.created_by == user.id,
+            scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read'))))
     failures = list(db.scalars(select(ImportFailure).where(ImportFailure.user_id == user.id, ImportFailure.batch_id == batch_id)))
     return {'batch_id': batch_id, 'tasks': [{**row(t), 'name': db.get(File, t.file_id).original_name} for t in tasks], 'failures': [
         {k: getattr(f, k) for k in ['id', 'name', 'error_code', 'message']} for f in failures], 'total': len(tasks) + len(failures)}
@@ -97,8 +100,9 @@ def batch_result(db: DbSession, user: User, batch_id: str) -> dict:
 
 def batch_history(db: DbSession, user: User) -> list[str]:
     ids = set(db.scalars(select(ResumeRecord.batch_id).join(Task, Task.id == ResumeRecord.task_id)
+        .join(File, File.id == Task.file_id)
         .join(Talent, Talent.id == Task.talent_id).where(Task.created_by == user.id,
-            scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read')).distinct()))
+            File.talent_id == Task.talent_id, scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read')).distinct()))
     ids.update(db.scalars(select(ImportFailure.batch_id).where(ImportFailure.user_id == user.id).distinct()))
     return sorted(ids, reverse=True)[:50]
 
@@ -127,12 +131,17 @@ def create_parse(db: DbSession, user: User, file_id: str, key: str, request_id: 
 
 
 def result(db: DbSession, user: User, task_id: str) -> dict:
-    record = db.get(ResumeRecord, task_id)
     task = db.get(Task, task_id)
-    if not record or not task:
-        fail(404, 'NOT_FOUND', '解析记录不存在或无访问权限')
+    if not task:
+        fail(404, 'NOT_FOUND', '记录不存在或无访问权限')
     talent_access(db, user, 'talent.read', task.talent_id)
     talent_access(db, user, 'file.read', task.talent_id)
+    if not current_task_file(db, task, lock=True):
+        fail(404, 'NOT_FOUND', '记录不存在或无访问权限')
+    # 原文JSON只能在档案授权与文件当前归属均通过后加载。
+    record = db.get(ResumeRecord, task_id)
+    if not record:
+        fail(404, 'NOT_FOUND', '记录不存在或无访问权限')
     data = row(record)
     if data['validated'] and 'duplicate_ids' in data['validated']:
         ids = data['validated']['duplicate_ids']
@@ -144,7 +153,8 @@ def result(db: DbSession, user: User, task_id: str) -> dict:
 def can_execute(db: DbSession, task: Task) -> bool:
     user = db.get(User, task.created_by)
     talent = db.get(Talent, task.talent_id)
-    return bool(user and user.enabled and talent and all(allowed(db, user, action, talent)
+    source = current_task_file(db, task, lock=True)
+    return bool(source and user and user.enabled and talent and all(allowed(db, user, action, talent)
                 for action in ['task.run', 'file.read', 'talent.write']))
 
 
@@ -170,7 +180,7 @@ def execute_parse(task_id: str, version: int) -> None:
     except Exception:
         error = 'RESUME_EXECUTION_FAILED'
     with Session.begin() as db:
-        task = db.get(Task, task_id)
+        task = db.scalar(select(Task).where(Task.id == task_id).with_for_update())
         if not task or task.run_version != version or task.state != 'running':
             return
         if not can_execute(db, task):
@@ -231,6 +241,9 @@ def apply_extraction(db: DbSession, task: Task, record: ResumeRecord) -> None:
     seen = {(f.category, ''.join(f.content.split()).casefold()) for f in facts}
     additions = []
     protected = {f.category for f in facts if f.confirmed}
+    protected.update(db.scalars(select(TalentFieldState.field).where(
+        TalentFieldState.talent_id == talent.id, TalentFieldState.confirmed.is_(True),
+        TalentFieldState.field.in_(FACT_CATEGORIES))))
     for field in fields:
         category = field['category']
         if category in ['name', 'phone', 'email'] or (category, ''.join(field['value'].split()).casefold()) in seen:
@@ -275,6 +288,10 @@ def resolve_duplicate(db: DbSession, user: User, task_id: str, action: str, targ
     db.refresh(task)
     db.refresh(record)
     db.refresh(source_talent)
+    if not current_task_file(db, task, lock=True):
+        fail(404, 'NOT_FOUND', '记录不存在或无访问权限')
+    source_talent = db.scalar(select(Talent).where(Talent.id == task.talent_id)
+        .with_for_update().execution_options(populate_existing=True))
     if record.quality != 'possible_duplicate' or source_talent.version != record.base_version:
         fail(409, 'VERSION_CONFLICT', '解析记录或档案已变化')
     # 人工决策与前面的任务锁在同一短事务内，重复提交不会追加事实。

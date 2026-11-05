@@ -225,6 +225,9 @@ def retry(task_id: str, body: VersionInput, request_id: str, user: User, db: DbS
     talent_access(db, user, 'task.run', task.talent_id)
     if task.kind == 'resume_parse':
         from app.services.resume_tasks import PERMANENT_ERRORS
+        from app.repositories.access import current_task_file
+        if not current_task_file(db, task, lock=True):
+            fail(404, 'NOT_FOUND', '记录不存在或无访问权限')
         talent_access(db, user, 'file.read', task.talent_id)
         talent_access(db, user, 'talent.write', task.talent_id)
         if task.error_code in PERMANENT_ERRORS:

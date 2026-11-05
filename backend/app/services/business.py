@@ -6,6 +6,8 @@ from app.models.entities import Talent, Fact, TalentHistory, Idempotency, Audit,
 from app.core.security import fail, allowed
 from app.models.entities import TalentFieldState
 
+FACT_CATEGORIES = ('education', 'experience', 'project', 'skill', 'certificate')
+
 def row(obj) -> dict:
     return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
 
@@ -64,7 +66,8 @@ def save_talent(db, user, body, request_id: str, talent: Talent | None = None) -
         version, changed = 1, list(values) + ['facts']
     for fact in body.facts:
         db.add(Fact(talent_id=talent.id, **fact.model_dump(), source_version=version))
-    for field in ['name', 'phone', 'email']:
+    # 类别确认独立于明细行，删除最后一条也保留“人工确认空集合”的意图。
+    for field in ['name', 'phone', 'email', *FACT_CATEGORIES]:
         state = db.get(TalentFieldState, (talent.id, field))
         if state:
             state.confirmed, state.source_type, state.source_version = True, 'manual', version

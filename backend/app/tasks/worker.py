@@ -10,6 +10,7 @@ from app.models.entities import Task, Attempt, Outbox, User, Talent, File
 from app.services.files import safe_path
 from app.core.security import allowed
 from app.services.business import audit
+from app.repositories.access import current_task_file
 
 celery = Celery('talent', broker=BROKER_URL)
 celery.conf.update(task_acks_late=True, task_reject_on_worker_lost=True, worker_prefetch_multiplier=1, broker_connection_retry_on_startup=True, broker_connection_timeout=2, broker_transport_options={'visibility_timeout': 60, 'socket_connect_timeout': 2, 'socket_timeout': 2}, task_soft_time_limit=15, task_time_limit=20)
@@ -17,7 +18,8 @@ celery.conf.update(task_acks_late=True, task_reject_on_worker_lost=True, worker_
 def authorized(db, task: Task) -> bool:
     user = db.get(User, task.created_by)
     talent = db.get(Talent, task.talent_id)
-    return bool(user and user.enabled and talent and allowed(db, user, 'task.run', talent))
+    return bool(current_task_file(db, task, lock=True) and user and user.enabled and talent
+                and allowed(db, user, 'task.run', talent))
 
 def claim(task_id: str, version: int, lease_seconds: int = 30) -> bool:
     now = int(time.time())

@@ -1,7 +1,7 @@
 # 与 compose.yml 合用；只更新本项目 Worker，保留已有库和卷。
 services:
   worker:
-    image: ai-talent-stage2-backend:0.2.0
+    image: ai-talent-stage2-backend:0.2.1
     build:
       context: ..
       dockerfile: infra/Dockerfile.stage2
@@ -15,7 +15,7 @@ services:
     volumes:
       - ocr_stage2:/root/.paddlex
   indexer:
-    image: ai-talent-stage2-backend:0.2.0
+    image: ai-talent-stage2-backend:0.2.1
     command: ["python", "-m", "app.cli", "indexer"]
     environment:
       DATABASE_URL: mysql+pymysql://talent:${MYSQL_PASSWORD}@mysql:3306/talent

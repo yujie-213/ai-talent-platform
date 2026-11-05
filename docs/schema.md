@@ -38,3 +38,7 @@ index_events：id、talent_id、version唯一，state/error_code；档案保存�
 - d862ee03b004：talent_field_states，(talent_id,field)主键；confirmed/source_type/source_version，覆盖name/phone/email，包括人工确认空值。已有人工档案通过该迁移回填确认状态。
 - resume_records通过task关联当前人才、原文件、创建者；provisional说明初次导入。quality含pending/complete/needs_review/possible_duplicate/identity_conflict/version_conflict/failed；validated含fields/issues/missing、suggestions和当次授权内重复ID。读取时重新过滤重复ID，不能利用旧快照泄露已撤权档案。
 - 成功解析的原始证据不随人工编辑删除。当前Fact人工保存视为重新确认，原抽取记录/原文件仍可查；Task技术状态与资料quality、IndexEvent状态分开。
+
+### e973ff14b005 审查修复增量
+index_events新增attempt_count、failure_count、last_attempt_at、next_attempt_at及(state,next_attempt_at,last_attempt_at)索引；历史行默认0，新应用事件按创建时刻到期。attempt_count作领取版本，显式重建递增使旧调用失效；失败次数独立用于30秒起、最多1小时的指数退避。
+talent_field_states同表扩展使用education/experience/project/skill/certificate类别键（无需新表），保留空集合确认；迁移由已有人工标量确认记录回填类别，确认来源版本取最近人工版本。降级保留确认元数据，重新升级不重复插入。不删除或重置既有业务明细。

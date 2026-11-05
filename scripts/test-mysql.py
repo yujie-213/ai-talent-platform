@@ -18,7 +18,7 @@ try:
     environment = dict(os.environ)
     from sqlalchemy.engine import URL
     environment['TEST_DATABASE_URL'] = URL.create('mysql+pymysql', username='root', password=os.environ['MYSQL_ROOT_PASSWORD'], host='127.0.0.1', port=13306, database=database).render_as_string(hide_password=False)
-    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-x', '--tb=short'], env=environment)
+    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-x', '--tb=short', *sys.argv[1:]], env=environment)
 finally:
     with connection.cursor() as cursor:
         cursor.execute(f'DROP DATABASE `{database}`')

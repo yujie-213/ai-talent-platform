@@ -175,12 +175,17 @@ class ResumeRecord(Base):
 
 class IndexEvent(Base):
     __tablename__ = 'index_events'
-    __table_args__ = (UniqueConstraint('talent_id', 'version'),)
+    __table_args__ = (UniqueConstraint('talent_id', 'version'),
+                      Index('ix_index_events_due', 'state', 'next_attempt_at', 'last_attempt_at'))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'), index=True)
     version: Mapped[int] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(20), default='pending')
     error_code: Mapped[str | None] = mapped_column(String(80))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_attempt_at: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
 
 
 class ImportFailure(Base):

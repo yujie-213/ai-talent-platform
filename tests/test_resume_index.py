@@ -7,6 +7,8 @@ from app.services.resume_reader import ResumeError
 
 def test_index_failure_compensation_and_obsolete(ctx, monkeypatch):
     client, headers, ids, internal, external = ctx
+    clock=[1000]
+    monkeypatch.setattr('app.services.resume_index.time.time',lambda:clock[0])
     with Session.begin() as db:
         db.add(IndexEvent(talent_id=external, version=1))
     def unavailable(_):
@@ -28,6 +30,7 @@ def test_index_failure_compensation_and_obsolete(ctx, monkeypatch):
             return Response([{'id':'synthetic'}] if path.endswith('/query') else {'has':True})
     monkeypatch.setattr('app.services.resume_index.httpx.Client', Client)
     monkeypatch.setattr('app.services.resume_index.local_embeddings', lambda texts:[[0.0]*1024 for _ in texts])
+    clock[0]+=30
     assert compensate_indexes() == 1
     with Session.begin() as db:
         event=db.scalar(select(IndexEvent)); assert event.state == 'ready'

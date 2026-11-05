@@ -62,3 +62,6 @@
 ## 最终运行快照
 API /api/health与前端页面均HTTP200；本项目mysql/redis/worker/dispatcher/indexer均running。最终镜像两套Python环境pip check均无损坏依赖。故障注入已经结束，服务恢复，原有其他应用未停止/重置。
 当前相同有效档案判据对账：13份有效档案、13个当前版本ready索引；不是只统计有事件的子集。
+
+## 审查后补充
+646a562之后补齐文件当前归属、人工清空类别确认和索引公平退避，完整回归增至SQLite/MySQL各46项通过。此前40项未覆盖这三个边界，不能用历史通过结果替代新回归；见[本轮审查修复与实际验证](stage-two-review.md)。

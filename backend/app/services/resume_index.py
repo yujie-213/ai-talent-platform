@@ -1,11 +1,12 @@
 """可重建索引；业务提交后执行。旧版本不标记为当前就绪。"""
 import os
 import json
+import time
 import httpx
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from app.core.db import Session
-from app.models.entities import IndexEvent, Talent, Fact, ResumeRecord, Task
+from app.models.entities import IndexEvent, Talent, Fact, ResumeRecord, Task, File
 from app.core.security import scope_clause, talent_access, fail
 from app.repositories.access import effective_talent_clause
 from app.services.resume_providers import local_embeddings
@@ -36,6 +37,8 @@ def request_reindex(db, user, talent_id: str, version: int, request_id: str) -> 
     event = db.scalar(select(IndexEvent).where(IndexEvent.talent_id == talent_id, IndexEvent.version == version).with_for_update())
     if event:
         event.state, event.error_code = 'pending', None
+        event.next_attempt_at, event.failure_count = int(time.time()), 0
+        event.attempt_count += 1  # 显式重建使仍在外部调用中的旧领取失效。
     else:
         db.add(IndexEvent(talent_id=talent_id, version=version))
     from app.services.business import audit
@@ -56,25 +59,43 @@ def authorized_chunks(db, user, hits: list[dict]) -> list[dict]:
     ids = [hit.get('talent_id') for hit in hits]
     current = {t.id: t.version for t in db.scalars(select(Talent).where(
         Talent.id.in_(ids), scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read'), effective_talent_clause()))}
-    return [hit for hit in hits if hit.get('talent_id') in current and current[hit['talent_id']] == hit.get('profile_version')]
+    file_ids = [hit['file_id'] for hit in hits if hit.get('file_id')]
+    sources = {f.id: f.talent_id for f in db.scalars(select(File).where(File.id.in_(file_ids)))}
+    return [hit for hit in hits if hit.get('talent_id') in current
+            and current[hit['talent_id']] == hit.get('profile_version')
+            and (not hit.get('file_id') or sources.get(hit['file_id']) == hit['talent_id'])]
 
 
 def compensate_indexes(limit: int = 20) -> int:
+    now = int(time.time())
     with Session() as db:
         events = [(e.id, e.talent_id, e.version) for e in db.scalars(
-            select(IndexEvent).where(IndexEvent.state.in_(['pending', 'failed'])).limit(limit))]
+            select(IndexEvent).where(IndexEvent.state.in_(['pending', 'failed']), IndexEvent.next_attempt_at <= now)
+            .order_by(IndexEvent.next_attempt_at, IndexEvent.last_attempt_at, IndexEvent.id).limit(limit))]
     completed = 0
     for event_id, talent_id, version in events:
+        # 外部调用前短事务领取；并发补偿器不重复领取，进程中断最多10分钟后可重新领取。
+        with Session.begin() as db:
+            claim_time = int(time.time())
+            claimed = db.execute(update(IndexEvent).where(IndexEvent.id == event_id,
+                IndexEvent.state.in_(['pending', 'failed']), IndexEvent.next_attempt_at <= claim_time).values(
+                    attempt_count=IndexEvent.attempt_count + 1, last_attempt_at=claim_time, next_attempt_at=claim_time + 600)).rowcount
+            if not claimed:
+                continue
+            event = db.get(IndexEvent, event_id)
+            token, failures = event.attempt_count, event.failure_count
         try:
             with Session() as db:
                 talent = db.get(Talent, talent_id)
                 if talent.version != version:
-                    db.execute(update(IndexEvent).where(IndexEvent.id == event_id).values(state='obsolete'))
+                    db.execute(update(IndexEvent).where(IndexEvent.id == event_id, IndexEvent.attempt_count == token)
+                               .values(state='obsolete', next_attempt_at=0))
                     db.commit()
                     continue
                 chunks = [{'text': talent.name, 'source': 'profile', 'source_version': version}]
                 records = list(db.execute(select(ResumeRecord, Task).join(Task, Task.id == ResumeRecord.task_id)
-                    .where(Task.talent_id == talent_id, Task.state == 'succeeded')))
+                    .join(File, File.id == Task.file_id).where(Task.talent_id == talent_id,
+                        File.talent_id == Task.talent_id, Task.state == 'succeeded')))
                 for fact in db.scalars(select(Fact).where(Fact.talent_id == talent_id)):
                     evidence = {}
                     for record, task in records:
@@ -114,10 +135,14 @@ def compensate_indexes(limit: int = 20) -> int:
                     raise ResumeError('INDEX_NOT_VISIBLE')
             with Session.begin() as db:
                 talent = db.get(Talent, talent_id)
-                db.execute(update(IndexEvent).where(IndexEvent.id == event_id).values(
-                    state='ready' if talent.version == version else 'obsolete', error_code=None))
-            completed += 1
+                changed = db.execute(update(IndexEvent).where(IndexEvent.id == event_id, IndexEvent.attempt_count == token).values(
+                    state='ready' if talent.version == version else 'obsolete', error_code=None,
+                    failure_count=0, next_attempt_at=0)).rowcount
+            completed += int(bool(changed))
         except Exception:
             with Session.begin() as db:
-                db.execute(update(IndexEvent).where(IndexEvent.id == event_id).values(state='failed', error_code='INDEX_UNAVAILABLE'))
+                delay = min(3600, 30 * (2 ** min(failures, 7)))
+                db.execute(update(IndexEvent).where(IndexEvent.id == event_id, IndexEvent.attempt_count == token).values(
+                    state='failed', error_code='INDEX_UNAVAILABLE', failure_count=failures + 1,
+                    next_attempt_at=int(time.time()) + delay))
     return completed

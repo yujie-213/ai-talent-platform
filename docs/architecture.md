@@ -30,3 +30,6 @@
 
 ## 第二阶段实现入口
 resume_reader.py 按页/段落读取；resume_providers.py 统一模型/Embedding与隔离OCR入口；resume_validation.py 校验引用、结构、联系方式与时间；resume_tasks.py 业务编排与短事务成果屏障；candidates.py 授权组合筛选；resume_index.py 可重建索引事件补偿。tasks/worker.py 只作队列入口/领取/恢复，不内嵌格式读取。前端 CandidateWorkspace/ExtractionResult 和统一 api.ts 分开。逐项真实验证与限制见 stage-two-verification.md。
+
+## 第二阶段审查补充
+repositories/access.current_task_file统一核对Task与File当前归属，原文读取/执行/提交/重试/核对及索引引用均不能沿用已失效文件关联。business.save_talent保存独立类别确认（含空集合），resume_tasks.apply_extraction据此只给更新建议。resume_index以到期时间公平领取，持久化退避和领取版本，不在Embedding/Milvus期间持锁。详细复现和本轮验证见stage-two-review.md。

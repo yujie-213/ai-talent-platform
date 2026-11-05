@@ -71,3 +71,6 @@ GET /tasks 的 data 契约从数组更新为 {items,total}；无迁移/依赖变
 - Ollama真实/api/embed，已有bge-m3返回1024维。Milvus索引写入及容器连通尚待验证。六格式实际模型评测与Worker构建进行中。
 
 第二阶段最终逐项证据、样本错误与页面验收映射见 [stage-two-verification.md](stage-two-verification.md)。上方“开发中”段落为过程记录，当前状态以progress.md和本次最终报告为准。
+
+## 第二阶段本轮审查修复
+646a562的3项反馈修复前均复现。完整SQLite46 passed /162.30s、真实隔离MySQL46 passed /254.73s，真实Ollama/Milvus索引验证通过；细分替身、时钟和迁移证据见[stage-two-review.md](stage-two-review.md)。第二阶段仍待用户验收。

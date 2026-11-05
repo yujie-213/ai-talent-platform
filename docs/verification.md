@@ -58,3 +58,14 @@
 后端分页样本为61条外部+7条内部合成任务，仅用于查询测试、不投递；分别检查 HR 全范围68条、员工本人7条、管理员0条，总数与列表范围一致。self 回归同时检查未绑定和已绑定账号、无效建档403且无新增人才/幂等记录、原本人权限保留。
 
 GET /tasks 的 data 契约从数组更新为 {items,total}；无迁移/依赖变更。API与Worker/dispatcher已载入最新代码；独立5175测试服务已关闭。本轮未重新执行 Redis 故障或 Worker 强杀测试，历史结果保留在上节。
+
+## 第二阶段开发中实际记录（2026-11-05）
+- 安全快进 main 到7dbdb86；分支codex/stage-two-resume。
+- `.venv/Scripts/python.exe -m pytest tests/test_resume_reading.py -q`：7 passed；实际PDF渲染/文字提取、DOCX XML/图片读取；OCR为替身，只证明分流/定位。
+- `.venv/Scripts/python.exe -m pytest -q --tb=short`：25 passed / 68.11s（当时18旧测试+7新读取测试）。普通权限首次运行18个fixture因临时库不可访问报错；以可访问独立临时库的权限重跑通过，未将初次错误算通过。
+- `.venv/Scripts/python.exe -m pytest tests/test_resume_tasks.py -q --tb=short`：2 passed / 8.80s，模型替身验证并发编辑、证据隔离、幂等、超时。
+- `.venv/Scripts/python.exe scripts/test-mysql.py`：27 passed /110.71s，随机独立MySQL库，真实迁移及回归，结束删除该随机测试库，开发库不清空。
+- `npm --prefix frontend run build`：通过，包体提示仍在；普通执行曾因spawn EPERM失败，正常子进程权限重跑成功。`pip check`通过。
+- 用户本机模型合成短文本：name/email/skill三类引用通过，缺失教育/经历标needs_review。没有输出凭据。
+- `.tools/ocr-venv/Scripts/python.exe scripts/evaluate-ocr.py`：CPU Paddle3.2.0/PaddleOCR3.3.2，PP-OCRv5 mobile，合成图片4行预期/实际逐行一致。仅一个清晰样本，不外推准确率。HuggingFace下载SSL EOF后ModelScope回退成功；服务器大模型下载仍未确认成功，运行选择移动版。
+- Ollama真实/api/embed，已有bge-m3返回1024维。Milvus索引写入及容器连通尚待验证。六格式实际模型评测与Worker构建进行中。

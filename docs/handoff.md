@@ -1,3 +1,17 @@
+# 第二阶段接手增量（2026-11-05）
+
+当前分支 codex/stage-two-resume；基线 main 7dbdb86（已核对 d2f3dbd / 7dbdb86 第一阶段验收记录）。原工作区干净，安全快进 main 后建立分支。
+第二阶段进行中，未完成验收交付，不进入第三阶段。最新代码提交以 git log 为准。
+
+- 设计：docs/stage-two.md。新增 b640cc81b002 迁移仅增加 resume_records / index_events，已在随机 MySQL 测试库执行；开发库已升级。
+- 读取/模型/校验/任务/筛选/索引入口在 backend/app/services/resume_*.py 和 candidates.py；OCR 独立 Python 子进程 backend/app/ai/ocr_runner.py，Windows .tools/ocr-venv 隔离安装，API依赖无Paddle。
+- 前端新 CandidateWorkspace.vue / ExtractionResult.vue / api.ts；现有 App.vue 保留第一阶段管理和档案。
+- 本机用户已填写生成模型配置，合成短文本调用成功。不得输出 .env。Ollama实际1024维。OCR真实图片评测通过4行；结果在忽略目录 data/stage-two-evaluation。
+- 新 Worker 镜像 infra/Dockerfile.stage2 正在构建；不能假设既有 stage1 Worker 已具备OCR/新依赖。既有服务未重置/升级。
+- 当前仍有未完成代码和集成验证，进度详见 progress.md；不可把本增量当第二阶段已交付。
+
+---
+
 # 当前交接
 
 2026-11-05，北京时间。负责人李玉杰。第一阶段已验收：李玉杰在星星复核修复后，于本次对话明确回复“确认通过”。未进入第二阶段。

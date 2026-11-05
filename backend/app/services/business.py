@@ -2,7 +2,7 @@ import hashlib
 import json
 import time
 from sqlalchemy import select, update, delete
-from app.models.entities import Talent, Fact, TalentHistory, Idempotency, Audit, DepartmentPosition, User, Department, Pool
+from app.models.entities import Talent, Fact, TalentHistory, Idempotency, Audit, DepartmentPosition, User, Department, Pool, IndexEvent
 from app.core.security import fail, allowed
 
 def row(obj) -> dict:
@@ -63,5 +63,6 @@ def save_talent(db, user, body, request_id: str, talent: Talent | None = None) -
     for fact in body.facts:
         db.add(Fact(talent_id=talent.id, **fact.model_dump(), source_version=version))
     db.add(TalentHistory(talent_id=talent.id, version=version, actor_id=user.id, changed_fields=changed))
+    db.add(IndexEvent(talent_id=talent.id, version=version))
     audit(db, user, 'talent.write', talent.id, request_id)
     return talent

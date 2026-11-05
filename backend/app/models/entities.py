@@ -158,3 +158,26 @@ class Audit(Base):
     outcome: Mapped[str] = mapped_column(String(40))
     request_id: Mapped[str] = mapped_column(String(36))
     created_at: Mapped[int] = mapped_column(default=lambda: int(time.time()), index=True)
+
+
+class ResumeRecord(Base):
+    __tablename__ = 'resume_records'
+    task_id: Mapped[str] = mapped_column(ForeignKey('tasks.id'), primary_key=True)
+    base_version: Mapped[int] = mapped_column(Integer)
+    run_version: Mapped[int | None] = mapped_column(Integer)
+    provisional: Mapped[bool] = mapped_column(Boolean, default=False)
+    batch_id: Mapped[str] = mapped_column(String(36), index=True)
+    segments: Mapped[list | None] = mapped_column(JSON)
+    validated: Mapped[dict | None] = mapped_column(JSON)
+    quality: Mapped[str] = mapped_column(String(30), default='pending')
+    model: Mapped[str | None] = mapped_column(String(100))
+
+
+class IndexEvent(Base):
+    __tablename__ = 'index_events'
+    __table_args__ = (UniqueConstraint('talent_id', 'version'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(20), default='pending')
+    error_code: Mapped[str | None] = mapped_column(String(80))

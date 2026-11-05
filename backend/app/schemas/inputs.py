@@ -57,3 +57,9 @@ class TestTaskInput(Input):
 
 class VersionInput(Input):
     version: int = Field(ge=1)
+
+
+class DuplicateResolution(Input):
+    action: Literal['link', 'exclude']
+    target_id: str | None = None
+    version: int = Field(ge=1)

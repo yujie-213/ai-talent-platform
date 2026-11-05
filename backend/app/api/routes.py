@@ -1,12 +1,44 @@
 from fastapi import APIRouter, Depends, Request, Header, UploadFile, Query
 from fastapi.responses import FileResponse
+from uuid import UUID
 from app.core.db import get_db
 from app.core.security import current_user
 from app.schemas.inputs import *
 from app.services import application as service
+from app.services import resume_tasks
+from app.services import candidates
 router = APIRouter(prefix='/api')
 def response(request, data):
     return {'data': data, 'request_id': request.state.request_id}
+
+
+@router.post('/imports/{batch_id}', status_code=202)
+async def import_resume(batch_id: UUID, file: UploadFile, request: Request, user=Depends(current_user),
+                        db=Depends(get_db), idempotency_key: str=Header('')):
+    return response(request, await resume_tasks.import_resume(db, user, file, idempotency_key, str(batch_id), request.state.request_id))
+
+
+@router.get('/candidates')
+def candidate_page(request: Request, user=Depends(current_user), db=Depends(get_db),
+                   offset: int=Query(0, ge=0), limit: int=Query(20, ge=1, le=100),
+                   kind: str=Query('', pattern='^(internal|external)?$'),
+                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100)):
+    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience))
+
+
+@router.post('/files/{file_id}/parse', status_code=202)
+def parse_resume(file_id: str, request: Request, user=Depends(current_user), db=Depends(get_db), idempotency_key: str=Header('')):
+    return response(request, resume_tasks.create_parse(db, user, file_id, idempotency_key, request.state.request_id))
+
+
+@router.get('/tasks/{task_id}/extraction')
+def resume_extraction(task_id: str, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, resume_tasks.result(db, user, task_id))
+
+
+@router.post('/tasks/{task_id}/resolve')
+def resolve_resume(task_id: str, body: DuplicateResolution, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, resume_tasks.resolve_duplicate(db, user, task_id, body.action, body.target_id, body.version, request.state.request_id))
 
 
 @router.post('/auth/login')

@@ -28,3 +28,7 @@ MySQL 8.4，utf8mb4；SQLAlchemy 2；Alembic 显式迁移，不随应用启动�
 任务：queued -> running -> succeeded/failed；运行领取为条件 UPDATE，租约 30 秒，测试任务短于租约。恢复仅扫描过期 running，递增 run_version、将旧 attempt 标 expired 并新建 outbox。失败可显式重试，最多 3 个执行版本；运行前和提交结果前重新检查发起人的当前授权。结果提交必须匹配 running + run_version，迟到结果丢弃。outbox 提交发送后再标投递，崩溃可能重复发送，消费领取确保幂等。轮询补偿器持续补发及恢复；Broker 不作为业务权威源。
 
 文件单份最大 10 MiB；允许 PDF/PNG/JPEG/DOCX；验证文件可读取、非加密、PDF 页数 <=50、DOCX 安全压缩包上限；本阶段单文件请求，不提供批量解析。先鉴权，再流式限额读取，保存到 UUID 相对路径；数据库失败清理本次新文件。所有文件及任务读取重新检查对应人才当前范围。本阶段不解析、不调用模型。
+
+## 第二阶段增量 b640cc81b002
+resume_records：task_id 主键/外键，base_version/run_version，provisional，batch_id索引，segments/validated JSON，quality与模型标识。原文不混入当前有效 facts；每个 segment 有编号/locator/method/text，抽取有quote/segment_id。
+index_events：id、talent_id、version唯一，state/error_code；档案保存同事务写事件，外部调用在提交后。状态 pending/ready/failed/obsolete。MySQL为权威源。来源原文保存在受控结果接口，日志只记录编号/错误码。

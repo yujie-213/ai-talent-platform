@@ -29,3 +29,10 @@
 Idempotency-Key 最长 128 字符，按账号+动作+key 唯一；摘要覆盖业务内容（上传包含原名和内容哈希）；同键同内容复用资源，同键异内容 409，复用仍重新鉴权。并发唯一键冲突由客户端安全重试，不能重复记录。版本冲突 VERSION_CONFLICT，幂等冲突 IDEMPOTENCY_CONFLICT，权限不足 FORBIDDEN，未认证 UNAUTHORIZED，资源不存在 NOT_FOUND，格式校验 VALIDATION_ERROR，唯一/关联冲突 CONSTRAINT_CONFLICT。
 
 2026-11-05 验收修复：GET /tasks 的 data 从数组调整为 {items,total}，前端及现有调用方同步；前端每页20条，创建任务后按返回编号直接读取详情，并独立轮询尚在处理的详情。self 授权仅在账号已绑定非空人才 ID 且目标 ID 匹配时成立；无绑定的 self 不能授权建档。
+
+## 第二阶段接口增量（开发中）
+- POST /api/imports/{batch_uuid}：单文件multipart，Idempotency-Key；普通上传先建待解析占位，任务完成后入档。每用户批次最多20份。接口返回逐文件task；无效上传返回明确HTTP失败。
+- POST /api/files/{id}/parse：指定已有档案解析；需要该人才的task.run/file.read/talent.write；202返回task。幂等独立于机制测试。
+- GET /api/tasks/{id}/extraction：重新检查人才及原文件查看范围，返回原文定位、抽取字段/异常/缺失、资料状态、启动版本。技术任务状态不等于资料完整状态。
+- POST /api/tasks/{id}/resolve：action=link/exclude、target_id、version；疑似重复人工核对，关联再次检查目标权限、版本及身份冲突。
+- GET /api/candidates：offset/limit、kind、skill/education/experience原文包含条件（转义SQL通配符）；授权范围先过滤再分页/计数，按name/id稳定排序。教育/经验筛选为原文包含，尚未实现数值年限筛选。

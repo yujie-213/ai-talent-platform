@@ -17,10 +17,10 @@ def authorized(db, task: Task) -> bool:
     talent = db.get(Talent, task.talent_id)
     return bool(user and user.enabled and talent and allowed(db, user, 'task.run', talent))
 
-def claim(task_id: str, version: int) -> bool:
+def claim(task_id: str, version: int, lease_seconds: int = 30) -> bool:
     now = int(time.time())
     with Session.begin() as db:
-        changed = db.execute(update(Task).where(Task.id == task_id, Task.run_version == version, Task.state == 'queued').values(state='running', lease_until=now + 30)).rowcount
+        changed = db.execute(update(Task).where(Task.id == task_id, Task.run_version == version, Task.state == 'queued').values(state='running', lease_until=now + lease_seconds)).rowcount
         if not changed:
             return False
         db.add(Attempt(task_id=task_id, run_version=version, state='running', started_at=now))
@@ -61,6 +61,12 @@ def execute(task_id: str, version: int):
         time.sleep(12)  # 明确的机制测试等待窗口，用于真实容器强杀恢复验证。
     finish(task_id, version, error)
 
+@celery.task(name='talent.resume_parse', soft_time_limit=240, time_limit=270)
+def parse(task_id: str, version: int):
+    from app.services.resume_tasks import execute_parse
+    execute_parse(task_id, version)
+
+
 def requeue(db, task: Task, from_state: str) -> bool:
     version = task.run_version
     query = update(Task).where(Task.id == task.id, Task.run_version == version, Task.state == from_state)
@@ -93,7 +99,12 @@ def dispatch(send=None) -> int:
     count = 0
     for outbox_id, task_id, version in rows:
         try:
-            (send or (lambda t, v: execute.apply_async(args=[t, v], retry=False)))(task_id, version)
+            if send:
+                send(task_id, version)
+            else:
+                with Session() as db:
+                    kind = db.get(Task, task_id).kind
+                (parse if kind == 'resume_parse' else execute).apply_async(args=[task_id, version], retry=False)
         except Exception:
             with Session.begin() as db:
                 db.execute(update(Outbox).where(Outbox.id == outbox_id).values(tries=Outbox.tries + 1))

@@ -27,3 +27,6 @@
 首版应用服务部分简单管理读写仍直接使用 SQLAlchemy 会话；关键范围查询集中在 Repository，路由不持有业务 SQL。后续相关模块扩展时按职责提取，避免空架构抽象。
 
 表关系见 schema.md，端点见 api.md；接手先读 progress.md / handoff.md。修改公共权限时同时检查业务、文件与任务调用方。
+
+## 第二阶段增量（进行中）
+resume_reader.py 按页/段落读取；resume_providers.py 统一模型/Embedding与隔离OCR入口；resume_validation.py 校验引用、结构、联系方式与时间；resume_tasks.py 业务编排与短事务成果屏障；candidates.py 授权组合筛选；resume_index.py 可重建索引事件补偿。tasks/worker.py 只作队列入口/领取/恢复，不内嵌格式读取。前端 CandidateWorkspace/ExtractionResult 和统一 api.ts 分开。尚未声明全部集成通过。

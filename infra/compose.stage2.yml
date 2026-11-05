@@ -1,0 +1,17 @@
+# 与 compose.yml 合用；只更新本项目 Worker，保留已有库和卷。
+services:
+  worker:
+    image: ai-talent-stage2-backend:0.2.0
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.stage2
+    environment:
+      RESUME_LLM_BASE_URL: ${RESUME_LLM_BASE_URL:-}
+      RESUME_LLM_MODEL: ${RESUME_LLM_MODEL:-}
+      RESUME_LLM_API_KEY: ${RESUME_LLM_API_KEY:-}
+      OLLAMA_URL: http://host.docker.internal:11434
+      MILVUS_URL: http://host.docker.internal:19530
+    volumes:
+      - ocr_stage2:/root/.paddlex
+volumes:
+  ocr_stage2:

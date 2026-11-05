@@ -18,10 +18,11 @@
 | backend/alembic/versions/ | 初始建表与角色版本迁移 |
 | frontend/src/App.vue、style.css | 登录/人才/文件/任务/最小管理页面 |
 | infra/compose.yml、Dockerfile | 隔离 MySQL/Redis/Worker/dispatcher |
-| tests/test_stage_one.py、test_additional.py | 权限、文件、任务、并发等 15 项回归 |
+| tests/test_stage_one.py、test_additional.py、test_review_fixes.py | 权限、文件、任务、并发/分页等 18 项回归 |
 | scripts/test-mysql.py | 随机独立库真实迁移回归，不清空开发库 |
 | scripts/test-worker-live.py | 真正 Broker 中断、容器强杀恢复验证 |
-| frontend/scripts/smoke.mjs | 本机 Edge 页面验收 |
+| frontend/scripts/smoke.mjs | 本机 Edge 真实页面/上传/新任务详情与Worker轮询验收 |
+| frontend/scripts/task-pagination.mjs | Edge + 合成API：超过50条任务翻页、列表外新任务详情/轮询 |
 
 首版应用服务部分简单管理读写仍直接使用 SQLAlchemy 会话；关键范围查询集中在 Repository，路由不持有业务 SQL。后续相关模块扩展时按职责提取，避免空架构抽象。
 

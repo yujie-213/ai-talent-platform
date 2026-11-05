@@ -3,9 +3,9 @@
 2026-11-05，北京时间。负责人李玉杰。第一阶段待用户验收，未进入第二阶段；不得自行标记用户已验收。
 
 ## Git 与工作区
-- 第一阶段开发分支 feat/stage-one，收尾快进同步 main。最近实现提交 e211c34，测试补强提交 9ca5540；最后文档提交用 git log 核实，不循环自引用。
+- 本轮修复分支 fix/stage-one-access-task-pagination，收尾快进同步 main。最近修复提交 dd2f141；最后文档提交用 git log 核实，不循环自引用。第一阶段原交付为54535c2。
 - 公开远端 https://github.com/yujie-213/ai-talent-platform ，已核实 visibility=public / default_branch=main。公开是用户本次明确决定。
-- 收尾文档随当前提交推送；最终用 git status --short、git ls-remote 核实 main/feat/stage-one 同步。没有他人未提交改动。
+- 收尾文档随当前提交推送；最终用 git status --short、git ls-remote 核实 main/fix/stage-one-access-task-pagination 同步。没有他人未提交改动。
 - .env、data、.tools、.venv、node_modules、原文件和截图均忽略；本机秘密排除检查通过。
 
 ## 成果与入口
@@ -17,7 +17,16 @@
 - frontend/src/App.vue：人才/文件/任务/最小账号/基础资料/审计。角色范围配置通过受控 API，不宣称完整 V1 管理模块完成。
 - infra/compose.yml：本项目独立 MySQL 13306 / Redis 16379 / Worker / dispatcher；未删除、升级或重新配置原有服务。
 
-## 已验证
+## 本轮验收反馈修复
+- security.allowed 的 self 分支要求 user.talent_id 非空，消除 None == None 放行新档案；已绑定本人访问保留。回归覆盖未绑定/已绑定 self 写、越权建档被拒且不落幂等记录。
+- repositories/access.task_page 先鉴权再分页/计数，GET /tasks 返回 {items,total}（替换旧数组契约），前端20条/页、翻页、任务详情及创建后直达，详情独立轮询。未新增迁移或依赖。
+- tests/test_review_fixes.py：68条合成持久化任务的分页完整性、稳定顺序、越界页、权限内总数、直接详情与参数校验；不投递这些分页样本到 Worker。
+- frontend/scripts/task-pagination.mjs：真实 Edge + 合成 API 替身验证61条翻页、新任务不在首页时直达、完成轮询。npm run test:task-pagination 默认使用前端5173，不修改开发库。
+- frontend/scripts/smoke.mjs 增加真实上传/创建任务/详情/Worker完成轮询；新增合成记录保留在开发库。
+- 最终 SQLite 18 passed（64.75s）/ MySQL 18 passed（94.88s），npm run build、npm run test:task-pagination、npm run test:browser 通过。新测试在修复前能复现两处问题（2 failed/1 passed）。
+- API 已重启载入修复；Worker/dispatcher 平稳重启；原5173验收页面和数据库保留运行，独立5175测试页面已关闭。仍有原先包体/弃用提示。
+
+## 首次交付验证（历史记录，本轮未重跑故障中断脚本）
 - 最终锁定：pip check 无损坏依赖；SQLite 15 passed（55.87s），真实 MySQL 15 passed（91.56s）；双授权账号同键定向增强 1 passed（4.26s）。
 - 前端 build（含类型检查）和 Edge 真实浏览器三类账号通过。
 - scripts/test-worker-live.py 退出 0：Linux 读取共享原文件哈希、重复消息不重复成果、首次失败后重试成功、真实 Redis 中断补偿、Worker SIGKILL/重启、过期 attempt 和迟到结果拒绝全部通过。

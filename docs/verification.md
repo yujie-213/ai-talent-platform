@@ -42,3 +42,19 @@
 4. recover_once 进入 running 后对本项目 Worker 发 SIGKILL，再启动；过期租约恢复到执行版本 2，旧 attempt 标 expired，最终成功；旧版本 finish 被拒绝。
 
 全部场景通过，Redis/Worker 已恢复运行。未操作原有其他项目容器或卷。代码仓库公开不代表服务公开部署。阶段状态：待用户验收。
+
+## 本轮验收反馈修复（2026-11-05）
+状态：已验证，待用户验收。代码提交 dd2f141；未进入第二阶段。
+
+| 验证 | 实际命令 | 结果与边界 |
+|---|---|---|
+| 修复前复现 | `.venv/Scripts/python -m pytest -q tests/test_review_fixes.py --tb=short` | 2 failed / 1 passed：空绑定 self 放行、新任务分页返回缺少 items/total；已绑定正向场景通过 |
+| 修复后全量快速回归 | `.venv/Scripts/python -m pytest -q --tb=short` | 18 passed，64.75s；真实 TestClient + 独立 SQLite/Alembic |
+| 修复后 MySQL 回归 | `.venv/Scripts/python scripts/test-mysql.py` | 18 passed，94.88s；随机隔离库，用后仅删除该测试库 |
+| 类型与生产构建 | `cd frontend; npm run build` | 通过；保留已有包体较大提示 |
+| 任务页面回归 | `cd frontend; npm run test:task-pagination` | 真实 Edge，合成 API 替身：61条四页、最后一条详情、第62条新建任务不在首页仍直达、详情独立轮询；不计作真实 Worker 验证 |
+| 真实页面集成 | `cd frontend; npm run test:browser` | 无 API 替身，HR 实际上传合成 PNG、创建测试任务、直达返回编号详情、轮询至 Linux Worker 成功；员工本人范围与管理员页面通过 |
+
+后端分页样本为61条外部+7条内部合成任务，仅用于查询测试、不投递；分别检查 HR 全范围68条、员工本人7条、管理员0条，总数与列表范围一致。self 回归同时检查未绑定和已绑定账号、无效建档403且无新增人才/幂等记录、原本人权限保留。
+
+GET /tasks 的 data 契约从数组更新为 {items,total}；无迁移/依赖变更。API与Worker/dispatcher已载入最新代码；独立5175测试服务已关闭。本轮未重新执行 Redis 故障或 Worker 强杀测试，历史结果保留在上节。

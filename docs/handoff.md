@@ -1,16 +1,42 @@
-# 第二阶段接手增量（2026-11-05）
+# 当前交接：第二阶段待用户验收
 
-当前分支 codex/stage-two-resume；基线 main 7dbdb86（已核对 d2f3dbd / 7dbdb86 第一阶段验收记录）。原工作区干净，安全快进 main 后建立分支。
-第二阶段进行中，未完成验收交付，不进入第三阶段。最新代码提交以 git log 为准。
+2026-11-05，北京时间。李玉杰已确认第一阶段验收通过；第二阶段已完成本轮开发和本机验证，**待用户验收**，不进入第三阶段。
 
-- 设计：docs/stage-two.md。新增 b640cc81b002 迁移仅增加 resume_records / index_events，已在随机 MySQL 测试库执行；开发库已升级。
-- 读取/模型/校验/任务/筛选/索引入口在 backend/app/services/resume_*.py 和 candidates.py；OCR 独立 Python 子进程 backend/app/ai/ocr_runner.py，Windows .tools/ocr-venv 隔离安装，API依赖无Paddle。
-- 前端新 CandidateWorkspace.vue / ExtractionResult.vue / api.ts；现有 App.vue 保留第一阶段管理和档案。
-- 本机用户已填写生成模型配置，合成短文本调用成功。不得输出 .env。Ollama实际1024维。OCR真实图片评测通过4行；结果在忽略目录 data/stage-two-evaluation。
-- 新 Worker 镜像 infra/Dockerfile.stage2 正在构建；不能假设既有 stage1 Worker 已具备OCR/新依赖。既有服务未重置/升级。
-- 当前仍有未完成代码和集成验证，进度详见 progress.md；不可把本增量当第二阶段已交付。
+## Git与工作区
+- 分支codex/stage-two-resume；基线main 7dbdb86。实现提交76b46c3，收尾代码1dff35e。最后文档提交通过git log核对，避免自引用循环。
+- 现有远端https://github.com/yujie-213/ai-talent-platform；正常推送当前开发分支，不强推。main仍为第一阶段验收基线，未自动合并。
+- 代码与文档已分步提交；收尾git status/远端核对见最终汇报。原始工作区干净，未混入他人修改。
+- .env由用户本机配置生成模型；本轮只补本地Embedding摘要锁。没有输出密钥，也不提交.env/data/.tools/样本原文件/截图。提交前扫描实际本机秘密值无命中。
+
+## 业务链与关键入口
+1. api/routes.py只接HTTP/鉴权依赖/响应；resume_tasks.py编排导入、解析、授权、短事务保存与人工核对。
+2. resume_reader.py按页/段落读取；resume_providers.py隔离OCR/生成模型/Embedding，resume_validation.py约束字段、引用、格式和时间。
+3. task/attempt/outbox沿用底座；tasks/worker.py保持队列领取/续租/恢复与执行屏障。OCR/模型期间无数据库长事务。
+4. 普通导入建明确待解析行，正常结果可入档；疑似重复只在当前授权内对比。明确关联要再检查目标读写权限和身份线索，永不凭同名或文件哈希合并。
+5. talent_field_states保护人工确认空值；确认事实类别的差异作为建议。档案版本变化阻止迟到结果写入。
+6. candidates.py和repositories/access.py共享有效档案判据，范围内AND筛选/稳定排序/分页/精确总数。前端CandidateWorkspace.vue、ExtractionResult.vue、api.ts、labels.ts分职责；App.vue保留人工档案和底座管理。
+7. resume_index.py处理当前事实切片/来源元数据/版本、Strong可见确认、补偿、既有档案补齐和受控重建；MySQL是权威源，Milvus不替代权限与业务表。
+
+## 运行与迁移
+- API http://127.0.0.1:8000；页面 http://127.0.0.1:5173。账号在本机data/local-access.txt，勿贴聊天/勿提交。
+- 迁移新增b640cc81b002、c751dd92b003、d862ee03b004；已在随机MySQL库验证并应用开发库，无重置、删除、历史迁移改写或启动自动迁移。
+- infra/compose.yml + compose.stage2.yml合用。Worker镜像ai-talent-stage2-backend:0.2.0；dispatcher与indexer共享代码，indexer每30秒补偿；API与前端本机运行。启动/重载命令见README第二阶段小节。
+- Paddle3.2.0/PaddleOCR3.3.2 CPU mobile在/opt/ocr隔离环境；Windows评测在.tools/ocr-venv。包锁见requirements-ocr.lock.txt，文档样本生成依赖见requirements-evaluation.txt。
+- Ollama bge-m3当前1024维；摘要在本机.env，改模型需新索引重建，不混空间。既有Milvus/Dify/Conda/Ollama/Neo4j未升级或重置。
+
+## 验证与限制
+- 最终SQLite40 passed /137.49s、MySQL40 passed /208.86s；前端构建/类型通过，两个Worker环境pip check通过。
+- 真实多格式/CPU OCR/生成模型/Embedding/Milvus、三账号页面、真实简历页面、Broker故障/Worker恢复均有脚本和实际记录，见stage-two-verification.md。
+- 测试中模型/向量替身仅用于确定性权限/版本/错误注入，不算真实模型效果。真实模型另有独立合成样本评测。
+- 实际短PDF有技能漏抽；复杂版式/手写/低清未评测，DOCX非正文/矢量对象有限制；原文包含不等于数值年限筛选或“本科及以上”。未实现岗位匹配、聊天或总体准确率承诺。
+- 故障脚本只操作本项目，已恢复Redis/Worker；并发运行同项目故障脚本会干扰，不要同时执行。
+
+## 下一步与验收条件
+李玉杰和星星按README与stage-two-verification.md逐项核对上传、进度、引用、人工保护、重复关联和筛选；处理本阶段反馈。未经新授权不进入第三阶段，也不能将本次交接写成用户已验收。
 
 ---
+
+以下为第一阶段历史交接，当前状态以本页顶部为准。
 
 # 当前交接
 

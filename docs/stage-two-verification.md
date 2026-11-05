@@ -58,3 +58,7 @@
 - 一轮MySQL测试期间新增迁移，旧进程元数据与迁移不一致；停止修改结构后完整重跑通过，不采纳该轮23 passed/1 error为通过。
 - 页面发现保存未返回就关闭会被迟到响应重新打开；修复为只更新仍然选中的对象，再跑真实闭环通过。
 - 初次真实索引测试发现Bounded一致性延迟；加入Strong写后可见确认及查询后，完整真实索引测试通过。依据：[Milvus Query](https://milvus.io/api-reference/restful/v3.0.x/v2/Vector%20%28v2%29/Query.md)。
+
+## 最终运行快照
+API /api/health与前端页面均HTTP200；本项目mysql/redis/worker/dispatcher/indexer均running。最终镜像两套Python环境pip check均无损坏依赖。故障注入已经结束，服务恢复，原有其他应用未停止/重置。
+当前相同有效档案判据对账：13份有效档案、13个当前版本ready索引；不是只统计有事件的子集。

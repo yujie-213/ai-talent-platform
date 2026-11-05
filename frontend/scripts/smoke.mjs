@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test'
+import { chromium, expect } from '@playwright/test'
 import { readFile, mkdir } from 'node:fs/promises'
 const credentials = await readFile('../data/local-access.txt', 'utf8')
 const adminPassword = credentials.match(/^admin: (.+)$/m)?.[1]
@@ -32,6 +32,18 @@ try {
       await drawer.waitFor({state:'hidden'})
       await mkdir('../data/screenshots', {recursive:true})
       await page.screenshot({path:'../data/screenshots/hr-workspace.png',fullPage:true})
+      // 真实 API + MySQL + Linux Worker：上传合成图片并从创建响应直达任务详情。
+      await page.locator('.el-table__body tbody tr').filter({hasText:'浏览器合成候选人（已编辑）'}).first().click()
+      await drawer.locator('input[type=file]').setInputFiles({name:'synthetic-browser.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAADElEQVR4nGNgGB4AAADIAAGtQHYiAAAAAElFTkSuQmCC','base64')})
+      await drawer.getByRole('button',{name:'上传',exact:true}).click()
+      const fileRow = drawer.locator('.file-row').filter({hasText:'synthetic-browser.png'}).last()
+      const createdResponse = page.waitForResponse(response => response.url().endsWith('/test-tasks') && response.request().method() === 'POST')
+      await fileRow.getByRole('button',{name:'测试成功',exact:true}).click()
+      const created = (await (await createdResponse).json()).data
+      await expect(drawer).toBeHidden()
+      await expect(page.getByTestId('focused-task-id')).toHaveText(created.id)
+      await expect(page.getByTestId('task-detail')).toContainText('仅测试任务机制：未执行 OCR 或字段抽取',{timeout:20000})
+      await page.screenshot({path:'../data/screenshots/task-detail.png',fullPage:true})
     }
     if (username === 'demo.employee') {
       if (await page.locator('.el-table__body tbody tr').count() !== 1) throw new Error('员工页面范围不正确')

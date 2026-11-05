@@ -53,9 +53,12 @@ npm run dev
 cd frontend
 npm run build
 npm run test:browser
+npm run test:task-pagination
 ```
 
 快速回归使用独立临时 SQLite；MySQL 回归创建随机 `talent_test_*` 测试库，结束只删除该库，绝不清空开发库。任务单元用例直接调用消费者和模拟失败投递器，不能替代真实 Celery 验证。浏览器回归依赖本机 Edge、已启动 API/前端及合成账号，会新增带“浏览器合成”前缀的演示人才，截图仅存本机 data。详细实际结果与集成验证入口见 `docs/verification.md`。
+
+`test:task-pagination` 只需前端（默认5173）和本机 Edge，使用合成 API 替身验证61条任务翻页、新任务不在当前页时仍能直达详情并持续轮询，不修改开发库。后端真实权限与分页计数由 SQLite/MySQL 回归覆盖。任务页每页20条，可翻页、查看执行尝试；新建任务会直接展开详情。`test:browser` 另会真实上传合成图片并验证 Worker 完成后的详情更新。
 
 ## 代码与业务链
 

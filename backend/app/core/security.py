@@ -64,7 +64,7 @@ def scope_clause(db, user: User, action: str):
 
 def allowed(db, user: User, action: str, talent: Talent) -> bool:
     for g in grants(db, user, action):
-        if g.scope == 'self' and user.talent_id == talent.id:
+        if g.scope == 'self' and user.talent_id is not None and user.talent_id == talent.id:
             return True
         if talent.kind == 'internal' and (g.scope == 'internal_all' or (g.scope == 'department' and g.scope_id == talent.department_id)):
             return True

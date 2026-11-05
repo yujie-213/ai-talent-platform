@@ -1,7 +1,7 @@
 from __future__ import annotations
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy import select, update, delete, func
-from app.repositories.access import talent_page, talent_facts, talent_history
+from app.repositories.access import talent_page, talent_facts, talent_history, task_page
 from app.core.security import require, token, verify_password, hash_password, talent_access, scope_clause, fail
 from app.models.entities import *
 from app.schemas.inputs import *
@@ -201,9 +201,9 @@ def create_task(file_id: str, body: TestTaskInput, request_id: str, user: User, 
     db.commit()
     return row(task)
 
-def tasks(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> list[dict]:
-    rows = db.scalars(select(Task).join(Talent, Task.talent_id == Talent.id).where(scope_clause(db, user, 'talent.read')).order_by(Task.id).offset(offset).limit(limit))
-    return [row(t) for t in rows]
+def tasks(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> dict:
+    items, total = task_page(db, scope_clause(db, user, 'talent.read'), offset, limit)
+    return {'items': [row(t) for t in items], 'total': total}
 
 def get_task(task_id: str, request_id: str, user: User, db: DbSession) -> dict:
     task = db.get(Task, task_id)

@@ -20,9 +20,12 @@
 | GET /talents/{id}/files | 文件元信息 | file.read |
 | GET /files/{id}/download | attachment 字节 | file.read；禁止路径参数 |
 | POST /files/{id}/test-tasks | mode success/fail/fail_once/recover_once | task.run；Idempotency-Key；202，仅验证机制；fail_once 首次失败，recover_once 首版本等待 12 秒用于强杀验证 |
-| GET /tasks /tasks/{id} | 当前授权内任务/attempt | talent.read；读取时重新授权 |
+| GET /tasks | offset/limit（默认50、最大100） -> {items,total}；UUID 稳定排序 | talent.read；先按当前范围过滤再分页/计数 |
+| GET /tasks/{id} | 当前授权内任务及 attempts；可独立于列表页读取 | talent.read；读取时重新授权 |
 | POST /tasks/{id}/retry | version | task.run；failed 且版本匹配；202 |
 | GET /admin/audit | 分页元数据 | audit.read |
 | GET /health | 存活状态 | 无，不泄露连接信息 |
 
 Idempotency-Key 最长 128 字符，按账号+动作+key 唯一；摘要覆盖业务内容（上传包含原名和内容哈希）；同键同内容复用资源，同键异内容 409，复用仍重新鉴权。并发唯一键冲突由客户端安全重试，不能重复记录。版本冲突 VERSION_CONFLICT，幂等冲突 IDEMPOTENCY_CONFLICT，权限不足 FORBIDDEN，未认证 UNAUTHORIZED，资源不存在 NOT_FOUND，格式校验 VALIDATION_ERROR，唯一/关联冲突 CONSTRAINT_CONFLICT。
+
+2026-11-05 验收修复：GET /tasks 的 data 从数组调整为 {items,total}，前端及现有调用方同步；前端每页20条，创建任务后按返回编号直接读取详情，并独立轮询尚在处理的详情。self 授权仅在账号已绑定非空人才 ID 且目标 ID 匹配时成立；无绑定的 self 不能授权建档。

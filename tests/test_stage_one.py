@@ -38,7 +38,7 @@ def test_scope_file_task_admin_and_employee(ctx):
     assert c.get(f'/api/files/{f}/download', headers=h['demo.employee']).status_code == 404
     t = new_task(ctx)
     assert c.get(f'/api/tasks/{t}', headers=h['demo.employee']).status_code == 404
-    assert c.get('/api/tasks', headers=h['demo.employee']).json()['data'] == []
+    assert c.get('/api/tasks', headers=h['demo.employee']).json()['data'] == {'items': [], 'total': 0}
     assert c.get('/api/admin/audit', headers=h['demo.hr']).status_code == 403
 
 def test_current_disable_and_revocation(ctx):

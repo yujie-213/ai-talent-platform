@@ -3,6 +3,8 @@
 日期：2026-11-05；状态：架构和业务规则已讨论确认，详细表/接口/依赖版本尚待实现前补齐。
 权威产品输入：冻结 PRD + docs/decisions.md。本文不宣称已经实现。
 
+2026-11-05 实施补充：阶段一详细落表与接口已补入 schema.md / api.md；真实代码导航见 architecture.md，运行与验证状态见 progress.md / verification.md。本文其余部分保留完整 V1 设计基线，不将第二至第五阶段的设计当作已实现功能。
+
 ## 1. 架构和环境
 - 模块化单体、前后端分离。Vue 3/TypeScript/Element Plus；FastAPI；SQLAlchemy/Alembic/MySQL。
 - 同一后端项目分别运行 HTTP API 与 Celery Worker；Redis 作为 Broker；MySQL 保存权威任务和成果，不依赖 Redis 临时状态保存全部业务历史。

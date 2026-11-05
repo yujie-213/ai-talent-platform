@@ -12,8 +12,8 @@
 ## 已执行
 | 验证 | 命令 | 结果与性质 |
 |---|---|---|
-| 快速回归 | `.venv/Scripts/python -m pytest -q -x --tb=short` | 初版 11 passed，50.97s；真实 HTTP TestClient + SQLite/Alembic；任务消费直接调用，投递失败为替身 |
-| MySQL 回归 | `.venv/Scripts/python scripts/test-mysql.py` | 初版 11 passed，70.95s；MySQL 8.4.11 随机独立测试库，真实迁移、外键、唯一约束；任务执行仍为直接调用 |
+| 快速回归 | `.venv/Scripts/python -m pytest -q -x --tb=short` | 最终兼容锁定后 15 passed，55.87s；真实 HTTP TestClient + SQLite/Alembic；任务消费直接调用，投递失败为替身 |
+| MySQL 回归 | `.venv/Scripts/python scripts/test-mysql.py` | 最终兼容锁定后 15 passed，91.56s；MySQL 8.4.11 随机独立测试库，真实迁移、外键、唯一约束；任务执行仍为直接调用 |
 | 前端类型/构建 | `cd frontend; npm run build` | 通过；提示 Element Plus 打包体积较大，当前阶段可运行，后续按需拆包 |
 | 实际浏览器 | `cd frontend; node scripts/smoke.mjs` | Edge 无界面真实页面：HR 建档及编辑、员工仅本人/无建档按钮、管理员账号/基础资料/审计页面均通过；无 pageerror |
 | 开发库迁移与合成数据 | `alembic ... upgrade head` / `scripts/init-demo.py` | 本项目新建 MySQL 库成功；未清空任何已有用户库；密码仅保留本机忽略文件 |
@@ -22,6 +22,23 @@
 
 ## 验证边界
 - 没有 OCR、LLM、Embedding、Milvus 检索或岗位匹配验证，这些不在第一阶段。
-- 模拟过期租约恢复证明数据库恢复机制；真实容器进程强杀/重启及 Broker 中断需单独集成记录，不以单元测试冒充。
+- 单元场景使用替身与直接调用；另已完成下方独立真实 Redis / Linux Worker 故障集成，二者分开计入。
 - 完整系统管理界面未声称完成；阶段一授权配置可用受控 API 与合成种子。
 - 没有负载/渗透测试；这是仅本机运行的阶段性交付。
+
+## 集成排错记录
+- 官方 Python 镜像首次下载发生 EOF，重试成功；未改用不明镜像。
+- 首次真实 Worker 启动失败：间接依赖 Kombu 5.7.0 与 Redis 客户端 5.2.1 不兼容。固定 Kombu 5.4.2，更新完整依赖锁；本机 pip check 通过，容器重建后继续真实验证。该失败不计为集成通过。
+- 角色授权增加独立 version（第二条 Alembic 迁移），完整替换授权也能检测冲突。
+
+补强验证：两个均有业务权限的账号使用同一 Idempotency-Key，生成各自资源；定向测试 1 passed，4.26s。前端最终 build/test:browser 再次通过。
+
+## 最终真实集成（已验证）
+命令：`.venv/Scripts/python scripts/test-worker-live.py`，退出码 0。真实 MySQL 8.4.11 / Redis 6.2.24 / Linux Python 3.13.1 / Celery 5.4.0 / Kombu 5.4.2 / redis-py 5.2.1，API 在 Windows。
+
+1. Worker 通过共享挂载读取原文件并核对 SHA-256，成功；重复发送相同任务两次，仍只有一次 attempt 和成果。
+2. fail_once 首次明确失败，API 显式重试后第二版本成功。
+3. 真实停止本项目 Redis，API 仍保存任务及 outbox，未标投递且 tries 增加；启动 Redis 后 dispatcher 补发成功。
+4. recover_once 进入 running 后对本项目 Worker 发 SIGKILL，再启动；过期租约恢复到执行版本 2，旧 attempt 标 expired，最终成功；旧版本 finish 被拒绝。
+
+全部场景通过，Redis/Worker 已恢复运行。未操作原有其他项目容器或卷。代码仓库公开不代表服务公开部署。阶段状态：待用户验收。

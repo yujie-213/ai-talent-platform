@@ -48,6 +48,8 @@ npm run dev
 ```powershell
 .venv/Scripts/python -m pytest -q
 .venv/Scripts/python scripts/test-mysql.py
+# 无其他本项目作业时执行：会临时停止项目 Redis 并强杀/恢复项目 Worker
+.venv/Scripts/python scripts/test-worker-live.py
 cd frontend
 npm run build
 npm run test:browser

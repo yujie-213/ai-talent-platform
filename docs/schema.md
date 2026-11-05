@@ -5,7 +5,7 @@ MySQL 8.4，utf8mb4；SQLAlchemy 2；Alembic 显式迁移，不随应用启动�
 | 表 | 关键字段 / 关系 / 索引 |
 |---|---|
 | users | username 唯一，password_hash，enabled，version，talent_id 可空唯一 FK，department_id FK |
-| roles / user_roles | 名称唯一；账号角色联合主键 |
+| roles / user_roles | 名称唯一，角色 version 原子检测授权配置冲突；账号角色联合主键 |
 | grants | role_id FK，action，scope，scope_id；按角色/动作索引；动作与范围绑定 |
 | departments | name 唯一 |
 | positions | 公司岗位 name 唯一 |

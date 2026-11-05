@@ -1,5 +1,9 @@
 # AI 数字化人才平台
 
+当前：第一阶段已验收；第二阶段“真实简历解析与筛选”待用户验收。未进入第三阶段。
+第二阶段请直接看本页末尾的“第二阶段启动与页面验收”、[逐项验证](docs/stage-two-verification.md)及[进度](docs/progress.md)。本页第一阶段说明保留为底座操作与历史记录。
+
+
 李玉杰负责的分阶段学习项目。当前仅第一阶段：登录及当前授权 → 人工人才档案 → 受控来源文件 → 明确标识的后台机制测试。没有真实 OCR、LLM、Embedding 或匹配能力；不需要模型密钥。服务只绑定本机，不是公开部署。
 
 ## 本机启动（PowerShell，项目根目录）
@@ -67,3 +71,56 @@ npm run test:task-pagination
 创建测试任务时，同事务写入 `tasks/outbox` → 独立 dispatcher 投递 Redis → Linux Celery Worker 条件领取 → `attempts` 记录执行 → 当前授权及执行版本校验后保存结果。投递失败保留 outbox；过期运行由 dispatcher 恢复或明确失败；重复消息和旧执行无法再次提交成果。
 
 设计见 `docs/schema.md`、`docs/api.md`；交接入口 `docs/progress.md`、`docs/handoff.md`。前端为 Vue 3 / TypeScript / Element Plus。完整 V1 规划仍见 `docs/plan.md`，不自动进入第二阶段。
+
+
+## 第二阶段启动与页面验收
+
+复用已有.env、MySQL/Redis卷和用户账号，不重新运行初始化脚本，不删除容器/卷/模型。生成模型已在本机配置，禁止把密钥发到聊天或提交Git。
+
+在项目根目录PowerShell执行（Python/Node等底座安装仍见上文）：
+
+```powershell
+$env:PYTHONPATH='backend'
+.venv/Scripts/python.exe -m pip install -r backend/requirements.lock.txt
+.venv/Scripts/python.exe -m alembic -c backend/alembic.ini upgrade head
+docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml build worker
+docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml up -d
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+另一个终端：
+
+```powershell
+npm --prefix frontend ci
+npm --prefix frontend run dev
+```
+
+打开 http://127.0.0.1:5173 。本机账号仍从data/local-access.txt查看，不要把该文件提交或贴聊天。Worker使用隔离CPU OCR环境，indexer使用本地Ollama与既有Milvus；都不改变Dify服务。
+
+配置：RESUME_LLM_BASE_URL（含供应商要求的/v1前缀）、RESUME_LLM_MODEL、RESUME_LLM_API_KEY。需兼容chat/completions和json_object；生成请求90秒超时。Ollama已有bge-m3，实测1024维；本机模型摘要锁在EMBEDDING_EXPECTED_DIGEST，权重变更会拒绝旧空间写入，应另建索引重建。容器地址已用host.docker.internal，若模型API实际在Windows本地，容器BASE_URL也需使用该主机地址；配置变化后重新执行compose up -d以载入环境，不用重置数据库。
+
+页面验收：
+1. HR登录，默认“候选人筛选”，按身份/技能/教育原文/经历原文组合筛选、排序、翻页，核对授权范围总数。员工/管理员不会因此扩大业务范围。
+2. “导入简历”选择1至20份授权或合成文件，上传并解析。页面明确显示10 MiB/50页/批次20份及读取限额；同一选择重试保留原批次，另一次导入点击“新建另一批”。
+3. 点击“进度与结果”，逐文件查看技术状态、执行次数/失败原因、资料状态、异常/缺失、原文定位与引用。失败文件不拖累同批其他文件；批次历史可逐份对账，损坏文件的失败也保留。
+4. 正常初次解析可入档；疑似重复只展示当前授权内联系方式和对比，HR显式关联或排除。姓名相同不自动合并；明确关联时身份冲突拦截更新。
+5. 打开“核对当前人才档案”，查看当前事实来源/确认状态。保存表单会将基础字段（含空值）与事实确认；再解析同一材料，原确认内容保持，差异进入建议。解析期间编辑也不会被迟到结果覆盖。
+6. 回候选人页按技能找人并打开画像。索引状态独立显示；更新后等待后台补偿（30秒周期，耗时视本机），失败不会伪报就绪。需要时在详情点“重建检索索引”。
+7. 不验收岗位匹配/档案聊天：本阶段显示未匹配，不产生分数，也不自动进入第三阶段。
+
+重跑验证：
+
+```powershell
+.venv/Scripts/python.exe -m pytest -q
+.venv/Scripts/python.exe scripts/test-mysql.py
+.venv/Scripts/python.exe scripts/test-index-live.py
+.venv/Scripts/python.exe scripts/test-worker-live.py
+.venv/Scripts/python.exe scripts/test-resume-recovery-live.py
+npm --prefix frontend run build
+```
+
+真实浏览器在frontend目录运行 `npm run test:browser` 和 `npm run test:resume-live`；`npm run test:task-pagination`使用明确API替身。故障脚本仅操作本项目服务，并在finally恢复；不要与同项目其他故障脚本同时运行。
+
+合成样本评测可选安装：项目.venv安装backend/requirements-evaluation.txt；单独建立.tools/ocr-venv并安装backend/requirements-ocr.lock.txt，再运行scripts/evaluate-ocr.py和scripts/evaluate-resumes.py。样本生成目录data/stage-two-evaluation均被忽略。真实简历不得用作公开测试样本。
+
+已知限制与实际漏抽请看docs/stage-two-verification.md：小样本不代表总体准确率；复杂版式/手写/低清未测；DOCX页眉页脚等未完整覆盖；筛选为显式原文包含，不把未知当0年或擅自解释为“本科及以上”。

@@ -18,6 +18,13 @@ class Extraction(BaseModel):
     fields: list[ExtractedField] = Field(max_length=200)
 
 
+def normalize_identity(category: str, value: str) -> str:
+    if category == 'phone':
+        digits = re.sub(r'\D', '', value)
+        return digits[2:] if len(digits) == 13 and digits.startswith('861') else digits
+    return value.strip().casefold()
+
+
 def validate_extraction(payload: dict, segments: list[dict]) -> dict:
     try:
         extraction = Extraction.model_validate(payload)
@@ -32,13 +39,19 @@ def validate_extraction(payload: dict, segments: list[dict]) -> dict:
             reason = 'EVIDENCE_MISMATCH'
         elif field.category == 'name' and len(field.value) > 100:
             reason = 'INVALID_NAME'
-        elif field.category == 'phone' and not re.fullmatch(r'\+?[\d ()-]{7,30}', field.value):
+        elif field.category == 'phone' and (not re.fullmatch(r'\+?[\d ()-]{7,30}', field.value) or not 7 <= len(re.sub(r'\D', '', field.value)) <= 15):
             reason = 'INVALID_PHONE'
-        elif field.category == 'email' and not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', field.value):
+        elif field.category == 'email' and (len(field.value) > 200 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', field.value)):
             reason = 'INVALID_EMAIL'
         dates = re.findall(r'((?:19|20)\d{2})[./年-](0?[1-9]|1[0-2])(?:月|\b)', field.value)
         if len(dates) >= 2 and tuple(map(int, dates[0])) > tuple(map(int, dates[1])):
             reason = 'REVERSED_DATE_RANGE'
+        for month in re.findall(r'(?:19|20)\d{2}[./年-](\d{1,2})(?!\d)', field.value):
+            if not 1 <= int(month) <= 12:
+                reason = 'INVALID_DATE_MONTH'
+        for start, end in re.findall(r'((?:19|20)\d{2})\s*(?:至|—|~|-)\s*((?:19|20)\d{2})', field.value):
+            if int(start) > int(end):
+                reason = 'REVERSED_DATE_RANGE'
         if reason:
             issues.append({'field': field.model_dump(), 'code': reason})
             continue
@@ -48,7 +61,7 @@ def validate_extraction(payload: dict, segments: list[dict]) -> dict:
             valid.append({**field.model_dump(), 'locator': source['locator']})
     present = {f['category'] for f in valid}
     for category in ['name', 'phone', 'email']:
-        if len({f['value'].casefold() for f in valid if f['category'] == category}) > 1:
+        if len({normalize_identity(category, f['value']) for f in valid if f['category'] == category}) > 1:
             issues.append({'code': 'AMBIGUOUS_IDENTITY', 'category': category})
             valid = [f for f in valid if f['category'] != category]
     present = {f['category'] for f in valid}

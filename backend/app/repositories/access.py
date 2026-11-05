@@ -1,6 +1,11 @@
 """权限相关数据访问；范围的业务含义由 core.security 决定。"""
-from sqlalchemy import select, func
+from sqlalchemy import select, func, not_, and_
 from app.models.entities import Grant, UserRole, Talent, Fact, TalentHistory, Task
+
+
+def effective_talent_clause():
+    # 导入尚未产生有效资料的占位行只属于任务视角。
+    return not_(and_(Talent.name == '待解析', Talent.version == 1))
 
 def current_grants(db, user_id: str, action: str):
     return list(db.scalars(select(Grant).join(UserRole, Grant.role_id == UserRole.role_id).where(UserRole.user_id == user_id, Grant.action == action)))

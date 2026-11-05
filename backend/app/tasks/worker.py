@@ -1,5 +1,7 @@
 import time
 import hashlib
+import threading
+from contextlib import contextmanager
 from celery import Celery
 from sqlalchemy import select, update
 from app.core.config import BROKER_URL, MAX_RUNS
@@ -61,10 +63,35 @@ def execute(task_id: str, version: int):
         time.sleep(12)  # 明确的机制测试等待窗口，用于真实容器强杀恢复验证。
     finish(task_id, version, error)
 
-@celery.task(name='talent.resume_parse', soft_time_limit=240, time_limit=270)
+@contextmanager
+def renewing_lease(task_id: str, version: int):
+    """长调用期间只用独立短事务续租；进程死亡后45秒可恢复。"""
+    stopped = threading.Event()
+    def renew():
+        while not stopped.wait(10):
+            try:
+                with Session.begin() as db:
+                    changed = db.execute(update(Task).where(Task.id == task_id, Task.run_version == version,
+                        Task.state == 'running').values(lease_until=int(time.time()) + 45)).rowcount
+                if not changed:
+                    return
+            except Exception:
+                # 数据库不可用则停止续租；最终成果仍受执行版本屏障约束。
+                return
+    thread = threading.Thread(target=renew, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stopped.set()
+        thread.join(timeout=2)
+
+
+@celery.task(name='talent.resume_parse', soft_time_limit=1800, time_limit=1830)
 def parse(task_id: str, version: int):
     from app.services.resume_tasks import execute_parse
-    execute_parse(task_id, version)
+    with renewing_lease(task_id, version):
+        execute_parse(task_id, version)
 
 
 def requeue(db, task: Task, from_state: str) -> bool:

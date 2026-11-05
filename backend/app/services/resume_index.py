@@ -1,13 +1,62 @@
 """可重建索引；业务提交后执行。旧版本不标记为当前就绪。"""
 import os
+import json
 import httpx
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from app.core.db import Session
-from app.models.entities import IndexEvent, Talent, Fact
+from app.models.entities import IndexEvent, Talent, Fact, ResumeRecord, Task
+from app.core.security import scope_clause, talent_access, fail
+from app.repositories.access import effective_talent_clause
 from app.services.resume_providers import local_embeddings
 from app.services.resume_reader import ResumeError
 
 COLLECTION = 'ai_talent_resume_bge_m3_v1'
+
+
+def enqueue_missing_indexes() -> None:
+    """为阶段一既有档案补齐当前版本事件，不重置任何现有索引或业务数据。"""
+    try:
+        with Session.begin() as db:
+            missing = list(db.scalars(select(Talent).outerjoin(IndexEvent,
+                (IndexEvent.talent_id == Talent.id) & (IndexEvent.version == Talent.version))
+                .where(IndexEvent.id.is_(None), effective_talent_clause()).limit(100)))
+            for talent in missing:
+                db.add(IndexEvent(talent_id=talent.id, version=talent.version))
+    except IntegrityError:
+        # 人工重建同时创建了相同唯一事件，下一周期重新对账即可。
+        return
+
+
+def request_reindex(db, user, talent_id: str, version: int, request_id: str) -> dict:
+    talent = talent_access(db, user, 'talent.write', talent_id)
+    talent_access(db, user, 'file.read', talent_id)
+    if talent.version != version:
+        fail(409, 'VERSION_CONFLICT', '档案已变更，请刷新')
+    event = db.scalar(select(IndexEvent).where(IndexEvent.talent_id == talent_id, IndexEvent.version == version).with_for_update())
+    if event:
+        event.state, event.error_code = 'pending', None
+    else:
+        db.add(IndexEvent(talent_id=talent_id, version=version))
+    from app.services.business import audit
+    audit(db, user, 'index.rebuild', talent_id, request_id)
+    db.commit()
+    return {'version': version, 'index_state': 'pending'}
+
+
+def scoped_index_filter(db, user) -> str:
+    """把当前授权和版本带入索引查询；空范围保持空，不能升级为全库。"""
+    rows = db.scalars(select(Talent).where(scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read'), effective_talent_clause()))
+    clauses = [f'(talent_id == {json.dumps(t.id)} and profile_version == {int(t.version)})' for t in rows]
+    return ' or '.join(clauses) if clauses else 'profile_version < 0'
+
+
+def authorized_chunks(db, user, hits: list[dict]) -> list[dict]:
+    """检索结果的第二道边界：再次核对当前授权与有效档案版本。"""
+    ids = [hit.get('talent_id') for hit in hits]
+    current = {t.id: t.version for t in db.scalars(select(Talent).where(
+        Talent.id.in_(ids), scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read'), effective_talent_clause()))}
+    return [hit for hit in hits if hit.get('talent_id') in current and current[hit['talent_id']] == hit.get('profile_version')]
 
 
 def compensate_indexes(limit: int = 20) -> int:
@@ -24,13 +73,24 @@ def compensate_indexes(limit: int = 20) -> int:
                     db.commit()
                     continue
                 chunks = [{'text': talent.name, 'source': 'profile', 'source_version': version}]
+                records = list(db.execute(select(ResumeRecord, Task).join(Task, Task.id == ResumeRecord.task_id)
+                    .where(Task.talent_id == talent_id, Task.state == 'succeeded')))
                 for fact in db.scalars(select(Fact).where(Fact.talent_id == talent_id)):
+                    evidence = {}
+                    for record, task in records:
+                        if record.base_version + 1 != fact.source_version or not record.validated:
+                            continue
+                        for field in record.validated['fields']:
+                            if field['category'] == fact.category and field['value'] == fact.content:
+                                evidence = {'file_id': task.file_id, 'task_id': task.id,
+                                            'locator': field['locator'], 'quote': field['quote']}
                     for start in range(0, len(fact.content), 1200):
                         chunks.append({'text': fact.content[start:start + 1200], 'source': fact.id,
-                                       'source_version': fact.source_version, 'offset': start})
+                                       'source_version': fact.source_version, 'offset': start,
+                                       'category': fact.category, 'confirmed': fact.confirmed, **evidence})
             vectors = local_embeddings([c['text'] for c in chunks])
             data = [{**chunk, 'id': f'{talent_id}:{version}:{i}', 'vector': vector,
-                     'talent_id': talent_id, 'profile_version': version}
+                     'talent_id': talent_id, 'profile_version': version, 'chunk_schema': 1, 'embedding_model': 'bge-m3', 'embedding_dimension': 1024}
                     for i, (chunk, vector) in enumerate(zip(chunks, vectors))]
             with httpx.Client(base_url=os.getenv('MILVUS_URL', 'http://127.0.0.1:19530'),
                               timeout=60, trust_env=False) as client:
@@ -47,6 +107,11 @@ def compensate_indexes(limit: int = 20) -> int:
                          'primaryFieldName': 'id', 'idType': 'VarChar', 'vectorFieldName': 'vector',
                          'metricType': 'COSINE', 'autoId': False, 'params': {'max_length': 100}})
                 call('entities/upsert', {'collectionName': COLLECTION, 'data': data})
+                visible = call('entities/query', {'collectionName': COLLECTION,
+                    'filter': f'talent_id == {json.dumps(talent_id)} and profile_version == {version}',
+                    'consistencyLevel': 'Strong', 'outputFields': ['id'], 'limit': len(data)})
+                if len(visible.get('data', [])) != len(data):
+                    raise ResumeError('INDEX_NOT_VISIBLE')
             with Session.begin() as db:
                 talent = db.get(Talent, talent_id)
                 db.execute(update(IndexEvent).where(IndexEvent.id == event_id).values(

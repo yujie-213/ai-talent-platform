@@ -92,6 +92,9 @@ def test_evidence_validation_and_no_invention():
     assert {i['code'] for i in result['issues']} == {'EVIDENCE_MISMATCH', 'INVALID_EMAIL', 'REVERSED_DATE_RANGE'}
     assert result['quality'] == 'needs_review'
     assert 'name' in result['missing']
+    long_email='a'*200+'@example.test'
+    invalid=validate_extraction({'fields':[field('email',long_email)]},[{'id':'1','text':long_email,'locator':'page:1'}])
+    assert invalid['issues'][0]['code']=='INVALID_EMAIL'
     with pytest.raises(ResumeError, match='SCHEMA'):
         validate_extraction({'fields': [], 'unexpected': True}, segments)
 

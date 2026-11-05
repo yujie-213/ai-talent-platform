@@ -11,7 +11,20 @@ services:
       RESUME_LLM_API_KEY: ${RESUME_LLM_API_KEY:-}
       OLLAMA_URL: http://host.docker.internal:11434
       MILVUS_URL: http://host.docker.internal:19530
+      EMBEDDING_EXPECTED_DIGEST: ${EMBEDDING_EXPECTED_DIGEST:-}
     volumes:
       - ocr_stage2:/root/.paddlex
+  indexer:
+    image: ai-talent-stage2-backend:0.2.0
+    command: ["python", "-m", "app.cli", "indexer"]
+    environment:
+      DATABASE_URL: mysql+pymysql://talent:${MYSQL_PASSWORD}@mysql:3306/talent
+      FILE_ROOT: /workspace/data/files
+      OLLAMA_URL: http://host.docker.internal:11434
+      MILVUS_URL: http://host.docker.internal:19530
+      EMBEDDING_EXPECTED_DIGEST: ${EMBEDDING_EXPECTED_DIGEST:-}
+    volumes: ["../backend:/workspace/backend:ro"]
+    depends_on:
+      mysql: {condition: service_healthy}
 volumes:
   ocr_stage2:

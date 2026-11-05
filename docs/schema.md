@@ -32,3 +32,9 @@ MySQL 8.4，utf8mb4；SQLAlchemy 2；Alembic 显式迁移，不随应用启动�
 ## 第二阶段增量 b640cc81b002
 resume_records：task_id 主键/外键，base_version/run_version，provisional，batch_id索引，segments/validated JSON，quality与模型标识。原文不混入当前有效 facts；每个 segment 有编号/locator/method/text，抽取有quote/segment_id。
 index_events：id、talent_id、version唯一，state/error_code；档案保存同事务写事件，外部调用在提交后。状态 pending/ready/failed/obsolete。MySQL为权威源。来源原文保存在受控结果接口，日志只记录编号/错误码。
+
+### 后续增量迁移
+- c751dd92b003：import_failures，仅保留当前上传者的批次/文件名/请求摘要/错误码和说明；(user_id,key)唯一，无效文件不保存正文，重复失败请求不重复计数。
+- d862ee03b004：talent_field_states，(talent_id,field)主键；confirmed/source_type/source_version，覆盖name/phone/email，包括人工确认空值。已有人工档案通过该迁移回填确认状态。
+- resume_records通过task关联当前人才、原文件、创建者；provisional说明初次导入。quality含pending/complete/needs_review/possible_duplicate/identity_conflict/version_conflict/failed；validated含fields/issues/missing、suggestions和当次授权内重复ID。读取时重新过滤重复ID，不能利用旧快照泄露已撤权档案。
+- 成功解析的原始证据不随人工编辑删除。当前Fact人工保存视为重新确认，原抽取记录/原文件仍可查；Task技术状态与资料quality、IndexEvent状态分开。

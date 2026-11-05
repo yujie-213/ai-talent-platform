@@ -7,6 +7,7 @@ from app.schemas.inputs import *
 from app.services import application as service
 from app.services import resume_tasks
 from app.services import candidates
+from app.services import resume_index
 router = APIRouter(prefix='/api')
 def response(request, data):
     return {'data': data, 'request_id': request.state.request_id}
@@ -18,12 +19,22 @@ async def import_resume(batch_id: UUID, file: UploadFile, request: Request, user
     return response(request, await resume_tasks.import_resume(db, user, file, idempotency_key, str(batch_id), request.state.request_id))
 
 
+@router.get('/imports')
+def import_history(request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, resume_tasks.batch_history(db, user))
+
+
+@router.get('/imports/{batch_id}')
+def import_batch(batch_id: UUID, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, resume_tasks.batch_result(db, user, str(batch_id)))
+
+
 @router.get('/candidates')
 def candidate_page(request: Request, user=Depends(current_user), db=Depends(get_db),
                    offset: int=Query(0, ge=0), limit: int=Query(20, ge=1, le=100),
                    kind: str=Query('', pattern='^(internal|external)?$'),
-                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100)):
-    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience))
+                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100), sort: str=Query('name_asc', pattern='^(name_asc|name_desc|version_desc)$')):
+    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience, sort))
 
 
 @router.post('/files/{file_id}/parse', status_code=202)
@@ -96,6 +107,11 @@ def get_talent(talent_id: str, request: Request, user=Depends(current_user), db=
 @router.put('/talents/{talent_id}')
 def edit_talent(talent_id: str, body: TalentUpdate, request: Request, user=Depends(current_user), db=Depends(get_db)):
     return response(request, service.edit_talent(talent_id=talent_id, body=body, request_id=request.state.request_id, user=user, db=db))
+
+
+@router.post('/talents/{talent_id}/reindex', status_code=202)
+def reindex_talent(talent_id: str, body: VersionInput, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, resume_index.request_reindex(db, user, talent_id, body.version, request.state.request_id))
 
 @router.post('/talents/{talent_id}/files', status_code=201)
 async def upload(talent_id: str, request: Request, file: UploadFile, user=Depends(current_user), db=Depends(get_db), idempotency_key: str=Header('')):

@@ -15,6 +15,8 @@ try {
     await page.locator('input').nth(0).fill(username)
     await page.locator('input').nth(1).fill(password)
     await page.getByRole('button', {name:'登录',exact:true}).click()
+    await page.getByRole('heading', {name:'候选人筛选',exact:true}).waitFor()
+    await page.getByRole('button', {name:'人才档案',exact:true}).click()
     await page.getByRole('heading', {name:'人才档案',exact:true}).waitFor()
     if (username === 'demo.hr') {
       await page.getByRole('button', {name:'新建人才',exact:true}).click()

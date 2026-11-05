@@ -39,7 +39,9 @@ def read_resume(name: str, content: bytes, ocr: Callable[[bytes], str]) -> list[
         text = text.strip()
         if not text:
             return
-        if len(segments) >= MAX_SEGMENTS or sum(len(s.text) for s in segments) + len(text) > MAX_TEXT:
+        if len(segments) >= MAX_SEGMENTS:
+            raise ResumeError('DOCUMENT_SEGMENT_LIMIT')
+        if sum(len(s.text) for s in segments) + len(text) > MAX_TEXT:
             raise ResumeError('DOCUMENT_TEXT_LIMIT')
         segments.append(Segment(str(len(segments) + 1), locator, method, text))
 

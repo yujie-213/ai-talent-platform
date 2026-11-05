@@ -69,3 +69,5 @@ GET /tasks 的 data 契约从数组更新为 {items,total}；无迁移/依赖变
 - 用户本机模型合成短文本：name/email/skill三类引用通过，缺失教育/经历标needs_review。没有输出凭据。
 - `.tools/ocr-venv/Scripts/python.exe scripts/evaluate-ocr.py`：CPU Paddle3.2.0/PaddleOCR3.3.2，PP-OCRv5 mobile，合成图片4行预期/实际逐行一致。仅一个清晰样本，不外推准确率。HuggingFace下载SSL EOF后ModelScope回退成功；服务器大模型下载仍未确认成功，运行选择移动版。
 - Ollama真实/api/embed，已有bge-m3返回1024维。Milvus索引写入及容器连通尚待验证。六格式实际模型评测与Worker构建进行中。
+
+第二阶段最终逐项证据、样本错误与页面验收映射见 [stage-two-verification.md](stage-two-verification.md)。上方“开发中”段落为过程记录，当前状态以progress.md和本次最终报告为准。

@@ -13,7 +13,7 @@ from app.core.db import Session
 from app.models.entities import Outbox
 from app.tasks.worker import execute, finish
 
-COMPOSE = ['docker', 'compose', '--env-file', '.env', '-f', 'infra/compose.yml']
+COMPOSE = ['docker', 'compose', '--env-file', '.env', '-f', 'infra/compose.yml', '-f', 'infra/compose.stage2.yml']
 def compose(*args):
     subprocess.run([*COMPOSE, *args], check=True, stdout=subprocess.DEVNULL)
 

@@ -1,9 +1,9 @@
 FROM python:3.13.1-slim@sha256:031ebf3cde9f3719d2db385233bcb18df5162038e9cda20e64e08f49f4b47a2f
 WORKDIR /workspace
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 libglib2.0-0 libgl1 && rm -rf /var/lib/apt/lists/*
+RUN sed -i 's|http://deb.debian.org|https://mirrors.ustc.edu.cn|g' /etc/apt/sources.list.d/debian.sources && apt-get update && apt-get install -y --no-install-recommends libgomp1 libglib2.0-0 libgl1 && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.lock.txt /tmp/requirements.txt
 COPY backend/requirements-ocr.lock.txt /tmp/requirements-ocr.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && python -m venv /opt/ocr && /opt/ocr/bin/pip install --no-cache-dir -r /tmp/requirements-ocr.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple -r /tmp/requirements.txt && python -m venv /opt/ocr && /opt/ocr/bin/pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple -r /tmp/requirements-ocr.txt
 ENV PYTHONPATH=/workspace/backend OCR_PYTHON=/opt/ocr/bin/python PADDLE_PDX_MODEL_SOURCE=modelscope
 COPY backend /workspace/backend
 CMD ["celery", "-A", "app.tasks.worker:celery", "worker", "--loglevel=INFO", "--concurrency=1"]

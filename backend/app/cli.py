@@ -52,16 +52,27 @@ def seed(password: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['bootstrap', 'seed-demo', 'dispatch', 'recover', 'dispatcher', 'index'])
+    parser.add_argument('command', choices=['bootstrap', 'seed-demo', 'dispatch', 'recover', 'dispatcher', 'index', 'indexer'])
     parser.add_argument('--username', default='admin')
     args = parser.parse_args()
     if args.command == 'bootstrap':
         bootstrap(args.username, os.getenv('BOOTSTRAP_PASSWORD') or getpass.getpass('本机管理员密码: '))
     elif args.command == 'seed-demo':
         seed(os.getenv('DEMO_PASSWORD') or getpass.getpass('合成测试账号密码: '))
-    elif args.command == 'index':
-        from app.services.resume_index import compensate_indexes
-        print('indexed:', compensate_indexes())
+    elif args.command in ['index', 'indexer']:
+        from app.services.resume_index import compensate_indexes, enqueue_missing_indexes
+        from sqlalchemy.exc import SQLAlchemyError
+        while True:
+            try:
+                enqueue_missing_indexes()
+                print('indexed:', compensate_indexes(), flush=True)
+            except SQLAlchemyError:
+                if args.command == 'index':
+                    raise RuntimeError('INDEX_DATABASE_UNAVAILABLE') from None
+                print('index cycle: database unavailable, retrying', flush=True)
+            if args.command == 'index':
+                break
+            time.sleep(30)
     else:
         from app.tasks.worker import dispatch, recover
         if args.command == 'dispatch':

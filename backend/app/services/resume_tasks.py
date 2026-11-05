@@ -2,18 +2,29 @@
 import hashlib
 import os
 import time
+from sqlalchemy.orm import Session as DbSession
 from sqlalchemy import select, update, func
 from app.core.db import Session
 from app.core.security import talent_access, allowed, fail, scope_clause
-from app.models.entities import File, Task, Outbox, ResumeRecord, User, Talent, Attempt, Fact, TalentHistory, IndexEvent, uid
-from app.services.business import row, existing, remember, audit
+from app.models.entities import File, Task, Outbox, ResumeRecord, User, Talent, Attempt, Fact, TalentHistory, IndexEvent, ImportFailure, uid
+from app.services.business import row, existing, remember, audit, digest
 from app.services.files import safe_path
 from app.services.resume_reader import read_resume, ResumeError
 from app.services.resume_providers import paddle_ocr, extract_fields
-from app.services.resume_validation import validate_extraction
+from app.services.resume_validation import validate_extraction, normalize_identity
+from app.models.entities import TalentFieldState
+
+PERMANENT_ERRORS = {'NO_READABLE_TEXT', 'DOCUMENT_TEXT_LIMIT', 'DOCUMENT_SEGMENT_LIMIT',
+    'DOCUMENT_IMAGE_LIMIT', 'IMAGE_PIXEL_LIMIT', 'FILE_HASH_MISMATCH', 'INVALID_DOCX_BODY',
+    'UNSUPPORTED_EXTERNAL_IMAGE', 'INVALID_DOCX_IMAGE', 'AUTHORIZATION_REVOKED'}
 
 
-async def import_resume(db, user, file, key: str, batch_id: str, request_id: str) -> dict:
+def can_retry(task: Task) -> bool:
+    return task.state == 'failed' and task.run_version < 3 and (
+        task.kind != 'resume_parse' or task.error_code not in PERMANENT_ERRORS)
+
+
+async def import_resume(db: DbSession, user: User, file, key: str, batch_id: str, request_id: str) -> dict:
     from app.services.files import validate_file
     from app.core.config import MAX_BYTES
     candidate = Talent(kind='external', owner_id=user.id, name='待解析')
@@ -23,19 +34,33 @@ async def import_resume(db, user, file, key: str, batch_id: str, request_id: str
     name = (file.filename or '').replace('\\', '/').split('/')[-1]
     if not name or len(name) > 200:
         fail(422, 'INVALID_FILE', '文件名无效')
-    media = validate_file(name, data)
     payload = {'batch_id': batch_id, 'name': name, 'hash': hashlib.sha256(data).hexdigest()}
-    previous = existing(db, user, 'resume.import', key, payload)
+    db.scalar(select(User).where(User.id == user.id).with_for_update())
+    prior_failure = db.scalar(select(ImportFailure).where(ImportFailure.user_id == user.id, ImportFailure.key == key).with_for_update())
+    if prior_failure:
+        if prior_failure.request_hash != digest(payload):
+            fail(409, 'IDEMPOTENCY_CONFLICT', '相同幂等键不能用于不同内容')
+        fail(prior_failure.status, prior_failure.error_code, prior_failure.message)
+    previous = existing(db, user, 'resume.import', key, payload, lock=True)
     if previous:
         task = db.get(Task, previous)
         talent_access(db, user, 'task.run', task.talent_id)
         return row(task)
     # 同一用户批次并发上传串行计数；上限不会被并发请求绕过。
     db.scalar(select(User).where(User.id == user.id).with_for_update())
-    count = db.scalar(select(func.count()).select_from(ResumeRecord).join(Task, ResumeRecord.task_id == Task.id)
-                      .where(ResumeRecord.batch_id == batch_id, Task.created_by == user.id))
+    count = len(list(db.scalars(select(ResumeRecord.task_id).join(Task, ResumeRecord.task_id == Task.id)
+                      .where(ResumeRecord.batch_id == batch_id, Task.created_by == user.id).with_for_update())))
+    count += len(list(db.scalars(select(ImportFailure.id).where(ImportFailure.batch_id == batch_id, ImportFailure.user_id == user.id).with_for_update())))
     if count >= 20:
         fail(422, 'BATCH_LIMIT', '每批最多20份文件')
+    from fastapi import HTTPException
+    try:
+        media = validate_file(name, data)
+    except HTTPException as error:
+        db.add(ImportFailure(user_id=user.id, batch_id=batch_id, key=key, request_hash=digest(payload),
+                            name=name, error_code=error.detail['code'], message=error.detail['message'], status=error.status_code))
+        db.commit()
+        raise
     db.add(candidate)
     db.flush()
     source = File(id=uid(), talent_id=candidate.id, relative_path=uid(), original_name=name,
@@ -61,7 +86,24 @@ async def import_resume(db, user, file, key: str, batch_id: str, request_id: str
         raise
 
 
-def create_parse(db, user, file_id: str, key: str, request_id: str) -> dict:
+def batch_result(db: DbSession, user: User, batch_id: str) -> dict:
+    tasks = list(db.scalars(select(Task).join(ResumeRecord, ResumeRecord.task_id == Task.id)
+        .join(Talent, Talent.id == Task.talent_id).where(ResumeRecord.batch_id == batch_id,
+            Task.created_by == user.id, scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read'))))
+    failures = list(db.scalars(select(ImportFailure).where(ImportFailure.user_id == user.id, ImportFailure.batch_id == batch_id)))
+    return {'batch_id': batch_id, 'tasks': [{**row(t), 'name': db.get(File, t.file_id).original_name} for t in tasks], 'failures': [
+        {k: getattr(f, k) for k in ['id', 'name', 'error_code', 'message']} for f in failures], 'total': len(tasks) + len(failures)}
+
+
+def batch_history(db: DbSession, user: User) -> list[str]:
+    ids = set(db.scalars(select(ResumeRecord.batch_id).join(Task, Task.id == ResumeRecord.task_id)
+        .join(Talent, Talent.id == Task.talent_id).where(Task.created_by == user.id,
+            scope_clause(db, user, 'talent.read'), scope_clause(db, user, 'file.read')).distinct()))
+    ids.update(db.scalars(select(ImportFailure.batch_id).where(ImportFailure.user_id == user.id).distinct()))
+    return sorted(ids, reverse=True)[:50]
+
+
+def create_parse(db: DbSession, user: User, file_id: str, key: str, request_id: str) -> dict:
     source = db.get(File, file_id)
     if not source:
         fail(404, 'NOT_FOUND', '文件不存在或无访问权限')
@@ -69,7 +111,8 @@ def create_parse(db, user, file_id: str, key: str, request_id: str) -> dict:
     talent_access(db, user, 'file.read', talent.id)
     talent_access(db, user, 'talent.write', talent.id)
     payload = {'file_id': file_id}
-    previous = existing(db, user, 'resume.parse', key, payload)
+    db.scalar(select(User).where(User.id == user.id).with_for_update())
+    previous = existing(db, user, 'resume.parse', key, payload, lock=True)
     if previous:
         return row(db.get(Task, previous))
     task = Task(talent_id=talent.id, file_id=file_id, created_by=user.id, kind='resume_parse')
@@ -83,7 +126,7 @@ def create_parse(db, user, file_id: str, key: str, request_id: str) -> dict:
     return row(task)
 
 
-def result(db, user, task_id: str) -> dict:
+def result(db: DbSession, user: User, task_id: str) -> dict:
     record = db.get(ResumeRecord, task_id)
     task = db.get(Task, task_id)
     if not record or not task:
@@ -98,7 +141,7 @@ def result(db, user, task_id: str) -> dict:
     return data
 
 
-def can_execute(db, task) -> bool:
+def can_execute(db: DbSession, task: Task) -> bool:
     user = db.get(User, task.created_by)
     talent = db.get(Talent, task.talent_id)
     return bool(user and user.enabled and talent and all(allowed(db, user, action, talent)
@@ -107,7 +150,7 @@ def can_execute(db, task) -> bool:
 
 def execute_parse(task_id: str, version: int) -> None:
     from app.tasks.worker import claim
-    if not claim(task_id, version, lease_seconds=300):
+    if not claim(task_id, version, lease_seconds=45):
         return
     error, segments, validated = None, None, None
     try:
@@ -152,25 +195,23 @@ def execute_parse(task_id: str, version: int) -> None:
         audit(db, db.get(User, task.created_by), 'resume.finish', task_id, task_id, state)
 
 
-def apply_extraction(db, task, record):
+def apply_extraction(db: DbSession, task: Task, record: ResumeRecord) -> None:
     talent = db.get(Talent, task.talent_id)
     fields = record.validated['fields']
     identities = {f['category']: f['value'] for f in fields if f['category'] in ['name', 'phone', 'email']}
     if record.provisional:
         # 新导入的占位档案只在没有人工编辑的原始版本上允许初次回填姓名。
-        contacts = [Talent.phone == identities['phone']] if identities.get('phone') else []
-        if identities.get('email'):
-            contacts.append(Talent.email == identities['email'])
-        if contacts and not record.validated.get('duplicate_excluded'):
-            from sqlalchemy import or_
-            duplicates = list(db.scalars(select(Talent.id).where(Talent.id != talent.id,
-                scope_clause(db, db.get(User, task.created_by), 'talent.read'), or_(*contacts))))
+        if any(identities.get(key) for key in ['phone', 'email']) and not record.validated.get('duplicate_excluded'):
+            scoped = db.scalars(select(Talent).where(Talent.id != talent.id,
+                scope_clause(db, db.get(User, task.created_by), 'talent.read')))
+            duplicates = [t.id for t in scoped if any(identities.get(key) and getattr(t, key) and
+                normalize_identity(key, identities[key]) == normalize_identity(key, getattr(t, key)) for key in ['phone', 'email'])]
             if duplicates:
                 record.validated = {**record.validated, 'duplicate_ids': duplicates}
                 record.quality = 'possible_duplicate'
                 return
     # 明确关联也不能在身份冲突时自动更新；仅保存证据供核对。
-    if any(getattr(talent, key) and getattr(talent, key).casefold() != value.casefold()
+    if any(getattr(talent, key) and normalize_identity(key, getattr(talent, key)) != normalize_identity(key, value)
            for key, value in identities.items() if not (record.provisional and key == 'name' and talent.version == 1)):
         record.quality = 'identity_conflict'
         return
@@ -178,11 +219,29 @@ def apply_extraction(db, task, record):
         record.quality = 'version_conflict'
         return
     # 所有原有非空字段均保留。列表只有未出现的事实可补充，不删除人工确认事实。
-    values = {key: value for key, value in identities.items() if not getattr(talent, key) or (record.provisional and key == 'name' and talent.version == 1)}
+    values = {}
+    suggestions = []
+    for key, value in identities.items():
+        field_state = db.get(TalentFieldState, (talent.id, key))
+        if (not field_state or not field_state.confirmed) and (not getattr(talent, key) or (record.provisional and key == 'name' and talent.version == 1)):
+            values[key] = value
+        elif normalize_identity(key, getattr(talent, key)) != normalize_identity(key, value):
+            suggestions.extend(f for f in fields if f['category'] == key)
     facts = list(db.scalars(select(Fact).where(Fact.talent_id == talent.id)))
     seen = {(f.category, ''.join(f.content.split()).casefold()) for f in facts}
-    additions = [f for f in fields if f['category'] not in ['name', 'phone', 'email']
-                 and (f['category'], ''.join(f['value'].split()).casefold()) not in seen]
+    additions = []
+    protected = {f.category for f in facts if f.confirmed}
+    for field in fields:
+        category = field['category']
+        if category in ['name', 'phone', 'email'] or (category, ''.join(field['value'].split()).casefold()) in seen:
+            continue
+        if category in protected:
+            suggestions.append(field)
+        else:
+            additions.append(field)
+    if suggestions:
+        record.validated = {**record.validated, 'suggestions': suggestions}
+        record.quality = 'needs_review'
     if not values and not additions:
         return
     new_version = record.base_version + 1
@@ -193,17 +252,24 @@ def apply_extraction(db, task, record):
     for field in additions:
         db.add(Fact(talent_id=talent.id, category=field['category'], content=field['value'],
                     source_type='resume', source_version=new_version, confirmed=False))
+    for field in values:
+        state = db.get(TalentFieldState, (talent.id, field))
+        if state:
+            state.source_type, state.source_version = 'resume', new_version
+        else:
+            db.add(TalentFieldState(talent_id=talent.id, field=field, confirmed=False, source_type='resume', source_version=new_version))
     db.add(TalentHistory(talent_id=talent.id, version=new_version, actor_id=task.created_by,
                          changed_fields=list(values) + ['facts']))
     db.add(IndexEvent(talent_id=talent.id, version=new_version))
 
 
-def resolve_duplicate(db, user, task_id: str, action: str, target_id: str | None, version: int, request_id: str):
+def resolve_duplicate(db: DbSession, user: User, task_id: str, action: str, target_id: str | None, version: int, request_id: str):
     task = db.get(Task, task_id)
     record = db.get(ResumeRecord, task_id)
     if not task or not record:
         fail(404, 'NOT_FOUND', '记录不存在或无访问权限')
     source_talent = talent_access(db, user, 'talent.write', task.talent_id)
+    talent_access(db, user, 'talent.read', task.talent_id)
     talent_access(db, user, 'file.read', task.talent_id)
     db.scalar(select(Task).where(Task.id == task.id).with_for_update())
     db.refresh(task)
@@ -211,17 +277,17 @@ def resolve_duplicate(db, user, task_id: str, action: str, target_id: str | None
     db.refresh(source_talent)
     if record.quality != 'possible_duplicate' or source_talent.version != record.base_version:
         fail(409, 'VERSION_CONFLICT', '解析记录或档案已变化')
-    # 人工决策与任务锁在同一短事务内，重复提交不会追加事实。
-    db.scalar(select(Task).where(Task.id == task.id).with_for_update())
+    # 人工决策与前面的任务锁在同一短事务内，重复提交不会追加事实。
     if action == 'link':
         target = talent_access(db, user, 'talent.write', target_id)
         talent_access(db, user, 'talent.read', target.id)
         talent_access(db, user, 'file.write', target.id)
+        talent_access(db, user, 'file.read', target.id)
         talent_access(db, user, 'task.run', target.id)
         if target.version != version:
             fail(409, 'VERSION_CONFLICT', '目标档案已变更')
         identities = [f for f in record.validated['fields'] if f['category'] in ['name', 'phone', 'email']]
-        if any(getattr(target, f['category']) and getattr(target, f['category']).casefold() != f['value'].casefold() for f in identities):
+        if any(getattr(target, f['category']) and normalize_identity(f['category'], getattr(target, f['category'])) != normalize_identity(f['category'], f['value']) for f in identities):
             fail(409, 'IDENTITY_CONFLICT', '身份线索冲突，不能关联更新')
         db.get(File, task.file_id).talent_id = target.id
         task.talent_id = target.id

@@ -181,3 +181,26 @@ class IndexEvent(Base):
     version: Mapped[int] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(20), default='pending')
     error_code: Mapped[str | None] = mapped_column(String(80))
+
+
+class ImportFailure(Base):
+    __tablename__ = 'import_failures'
+    __table_args__ = (UniqueConstraint('user_id', 'key'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    batch_id: Mapped[str] = mapped_column(String(36), index=True)
+    key: Mapped[str] = mapped_column(String(128))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(200))
+    error_code: Mapped[str] = mapped_column(String(80))
+    message: Mapped[str] = mapped_column(String(200))
+    status: Mapped[int] = mapped_column(Integer)
+
+
+class TalentFieldState(Base):
+    __tablename__ = 'talent_field_states'
+    talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'), primary_key=True)
+    field: Mapped[str] = mapped_column(String(20), primary_key=True)
+    confirmed: Mapped[bool] = mapped_column(Boolean)
+    source_type: Mapped[str] = mapped_column(String(20))
+    source_version: Mapped[int] = mapped_column(Integer)

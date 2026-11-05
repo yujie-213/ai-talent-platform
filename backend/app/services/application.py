@@ -15,7 +15,7 @@ def public_user(user: User) -> dict:
     return {k: v for k, v in row(user).items() if k != 'password_hash'}
 
 def detail(db: DbSession, talent) -> dict:
-    return {**row(talent), 'facts': [row(f) for f in talent_facts(db, talent.id)], 'history': [row(h) for h in talent_history(db, talent.id)]}
+    return {**row(talent), 'facts': [row(f) for f in talent_facts(db, talent.id)], 'field_states': [row(s) for s in db.scalars(select(TalentFieldState).where(TalentFieldState.talent_id == talent.id))], 'history': [row(h) for h in talent_history(db, talent.id)]}
 CATALOG = {'departments': Department, 'positions': Position, 'department_positions': DepartmentPosition, 'pools': Pool}
 
 def login(body: Login, request_id: str, db: DbSession) -> dict:
@@ -203,14 +203,19 @@ def create_task(file_id: str, body: TestTaskInput, request_id: str, user: User, 
 
 def tasks(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> dict:
     items, total = task_page(db, scope_clause(db, user, 'talent.read'), offset, limit)
-    return {'items': [row(t) for t in items], 'total': total}
+    return {'items': [task_data(t) for t in items], 'total': total}
+
+
+def task_data(task: Task) -> dict:
+    from app.services.resume_tasks import can_retry
+    return {**row(task), 'retryable': can_retry(task)}
 
 def get_task(task_id: str, request_id: str, user: User, db: DbSession) -> dict:
     task = db.get(Task, task_id)
     if not task:
         fail(404, 'NOT_FOUND', '任务不存在')
     talent_access(db, user, 'talent.read', task.talent_id)
-    return {**row(task), 'attempts': [row(a) for a in db.scalars(select(Attempt).where(Attempt.task_id == task_id))]}
+    return {**task_data(task), 'attempts': [row(a) for a in db.scalars(select(Attempt).where(Attempt.task_id == task_id))]}
 
 def retry(task_id: str, body: VersionInput, request_id: str, user: User, db: DbSession) -> dict:
     from app.tasks.worker import requeue
@@ -218,11 +223,17 @@ def retry(task_id: str, body: VersionInput, request_id: str, user: User, db: DbS
     if not task:
         fail(404, 'NOT_FOUND', '任务不存在')
     talent_access(db, user, 'task.run', task.talent_id)
+    if task.kind == 'resume_parse':
+        from app.services.resume_tasks import PERMANENT_ERRORS
+        talent_access(db, user, 'file.read', task.talent_id)
+        talent_access(db, user, 'talent.write', task.talent_id)
+        if task.error_code in PERMANENT_ERRORS:
+            fail(409, 'TASK_NOT_RETRYABLE', '此失败不能直接重试；请按失败原因重新上传，或在恢复授权后发起新的解析')
     if task.run_version != body.version or task.state != 'failed' or task.run_version >= 3:
         fail(409, 'VERSION_CONFLICT', '任务状态已变化或达到重试上限')
     if not requeue(db, task, 'failed'):
         fail(409, 'VERSION_CONFLICT', '任务状态已变化')
-    audit(db, user, 'test_task.retry', task.id, request_id)
+    audit(db, user, 'resume.retry' if task.kind == 'resume_parse' else 'test_task.retry', task.id, request_id)
     db.commit()
     db.refresh(task)
     return row(task)

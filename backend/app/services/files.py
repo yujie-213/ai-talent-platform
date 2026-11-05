@@ -3,6 +3,7 @@ from pathlib import Path
 import zipfile
 from PIL import Image
 from pypdf import PdfReader
+from fastapi import HTTPException
 from app.core.config import FILE_ROOT, MAX_BYTES
 from app.core.security import fail
 
@@ -19,8 +20,10 @@ def validate_file(name: str, content: bytes) -> str:
     try:
         if suffix == '.pdf':
             reader = PdfReader(BytesIO(content), strict=True)
-            if reader.is_encrypted or not 1 <= len(reader.pages) <= 50:
-                raise ValueError()
+            if reader.is_encrypted:
+                fail(422, 'PDF_ENCRYPTED', 'PDF已加密，请先在本机解密后上传')
+            if not 1 <= len(reader.pages) <= 50:
+                fail(422, 'PDF_PAGE_LIMIT', 'PDF须为1至50页')
             return 'application/pdf'
         if suffix in ('.png', '.jpg', '.jpeg'):
             with Image.open(BytesIO(content)) as img:
@@ -39,6 +42,8 @@ def validate_file(name: str, content: bytes) -> str:
                 if not {'[Content_Types].xml', 'word/document.xml'}.issubset(archive.namelist()) or archive.testzip():
                     raise ValueError()
             return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    except HTTPException:
+        raise
     except Exception:
         fail(422, 'INVALID_FILE', '文件损坏、加密、格式不符或超出可读取限制')
     fail(422, 'INVALID_FILE', '仅支持 PDF、PNG、JPEG、DOCX')

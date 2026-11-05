@@ -49,3 +49,37 @@ def test_parse_model_unavailable_and_revocation(ctx, monkeypatch):
     with Session() as db:
         assert db.get(Task, task_id).error_code == 'LLM_TIMEOUT'
         assert db.get(ResumeRecord, task_id).segments
+
+
+def test_parse_discards_returned_content_after_revocation(ctx, monkeypatch):
+    from app.models.entities import User
+    client, headers, ids, internal, external = ctx
+    h={**headers['demo.hr'], 'Idempotency-Key':'revoke-during-model'}
+    fid=client.post(f'/api/talents/{external}/files',headers=h,files={'file':('synthetic.pdf',text_pdf(),'application/pdf')}).json()['data']['id']
+    task=client.post(f'/api/files/{fid}/parse',headers=h).json()['data']
+    def revoke(_):
+        with Session.begin() as db:
+            db.get(User,ids['demo.hr']).enabled=False
+        return {'fields':[{'category':'skill','value':'Python','quote':'Python','segment_id':'1'}]}
+    monkeypatch.setattr('app.services.resume_tasks.extract_fields',revoke)
+    execute_parse(task['id'],1)
+    with Session() as db:
+        assert db.get(Task,task['id']).error_code == 'AUTHORIZATION_REVOKED'
+        record=db.get(ResumeRecord,task['id'])
+        assert record.segments is None and record.validated is None
+    assert client.get(f"/api/tasks/{task['id']}/extraction",headers=h).status_code == 401
+
+
+def test_permanent_parse_failure_requires_new_file_but_configuration_can_retry(ctx):
+    client, headers, ids, internal, external = ctx
+    h={**headers['demo.hr'],'Idempotency-Key':'retry-policy'}
+    fid=client.post(f'/api/talents/{external}/files',headers=h,files={'file':('synthetic.pdf',text_pdf(),'application/pdf')}).json()['data']['id']
+    task=client.post(f'/api/files/{fid}/parse',headers=h).json()['data']
+    with Session.begin() as db:
+        record=db.get(Task,task['id']);record.state='failed';record.error_code='DOCUMENT_TEXT_LIMIT'
+    detail=client.get(f"/api/tasks/{task['id']}",headers=h).json()['data']
+    assert detail['retryable'] is False
+    response=client.post(f"/api/tasks/{task['id']}/retry",headers=h,json={'version':1})
+    assert response.status_code==409 and response.json()['error']['code']=='TASK_NOT_RETRYABLE'
+    with Session.begin() as db: db.get(Task,task['id']).error_code='LLM_NOT_CONFIGURED'
+    assert client.post(f"/api/tasks/{task['id']}/retry",headers=h,json={'version':1}).status_code==202

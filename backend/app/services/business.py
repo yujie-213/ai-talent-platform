@@ -4,6 +4,7 @@ import time
 from sqlalchemy import select, update, delete
 from app.models.entities import Talent, Fact, TalentHistory, Idempotency, Audit, DepartmentPosition, User, Department, Pool, IndexEvent
 from app.core.security import fail, allowed
+from app.models.entities import TalentFieldState
 
 def row(obj) -> dict:
     return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
@@ -14,10 +15,11 @@ def audit(db, user, action: str, target: str | None, request_id: str, outcome='s
 def digest(payload) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
-def existing(db, user, action: str, key: str, payload) -> str | None:
+def existing(db, user, action: str, key: str, payload, lock: bool = False) -> str | None:
     if not key or len(key) > 128:
         fail(422, 'VALIDATION_ERROR', '需要 1~128 字符的 Idempotency-Key')
-    entry = db.scalar(select(Idempotency).where(Idempotency.user_id == user.id, Idempotency.action == action, Idempotency.key == key))
+    query = select(Idempotency).where(Idempotency.user_id == user.id, Idempotency.action == action, Idempotency.key == key)
+    entry = db.scalar(query.with_for_update() if lock else query)
     if entry:
         if entry.request_hash != digest(payload):
             fail(409, 'IDEMPOTENCY_CONFLICT', '相同幂等键不能用于不同内容')
@@ -62,6 +64,12 @@ def save_talent(db, user, body, request_id: str, talent: Talent | None = None) -
         version, changed = 1, list(values) + ['facts']
     for fact in body.facts:
         db.add(Fact(talent_id=talent.id, **fact.model_dump(), source_version=version))
+    for field in ['name', 'phone', 'email']:
+        state = db.get(TalentFieldState, (talent.id, field))
+        if state:
+            state.confirmed, state.source_type, state.source_version = True, 'manual', version
+        else:
+            db.add(TalentFieldState(talent_id=talent.id, field=field, confirmed=True, source_type='manual', source_version=version))
     db.add(TalentHistory(talent_id=talent.id, version=version, actor_id=user.id, changed_fields=changed))
     db.add(IndexEvent(talent_id=talent.id, version=version))
     audit(db, user, 'talent.write', talent.id, request_id)

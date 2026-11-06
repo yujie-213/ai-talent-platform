@@ -81,8 +81,8 @@ S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requireme
 第三阶段年限审查补充：规则v3，GET /matches/{id}及/results新增rules_stale，候选人requirements同样标rules_stale/stale；旧规则任务重试409 RULE_VERSION_CHANGED。旧结果不回写，需核对旧需求后新建。JD年限引用必须在完整原文中核对总/技能归属、边界及引用数值；上界/区间/严格下界不能悄悄压成整型最小值。见stage-three-review.md。
 
 
-## 第四阶段测评及管理增量（整体仍进行中）
-所有路径前缀/api。新增动作assessment.manage仅global（题库/试卷）；assessment.assign与assessment.read沿用人才范围并与talent.read取交集；管理员不因身份自动获得上述动作。chat.use已加入授权白名单，但聊天接口尚未交付。
+## 第四阶段测评及管理增量
+所有路径前缀/api。新增动作assessment.manage仅global（题库/试卷）；assessment.assign与assessment.read沿用人才范围并与talent.read取交集；管理员不因身份自动获得上述动作。chat.use遵守人才范围，已实现接口见下一节。
 
 - GET/POST /assessments/questions；PUT /questions/{id}带version，维护题干、kind(single/multiple/boolean)、选项{id,text}、correct选项ID集合、dimension、points(1~100)、enabled。管理投影含答案，非管理员工拒绝。
 - GET/POST /assessments/papers：发布{title,question_ids,paper_id?,version?}，POST带Idempotency-Key，旧快照不可修改；再次发布产生新版本。
@@ -93,4 +93,21 @@ S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requireme
 - GET /workbench：当前授权下真实人才、解析任务、本人匹配明细及测评任务统计，同时返回definitions说明各口径。没有编制/缺口或演示数字。
 - PATCH /catalog/{kind}/{id}：{version,enabled}，catalog.manage全局，条件更新，保留历史；无删除接口。
 
-原有/admin/users、/admin/roles及grants接口由真实页面复用。完整聊天/语义任务/流式与AI调用日志页待后续完成，不能视为已实现。
+原有/admin/users、/admin/roles及grants接口由真实页面复用。完整聊天/语义任务/流式与AI调用日志接口见下一节。
+
+
+## 第四阶段统一聊天、日志及完整管理接口
+所有路径前缀/api。chat.use使用人才数据范围，并与talent.read同时满足；系统管理员不自动获得。以下接口均检查当前账号及有效权限，撤权/禁用对旧JWT、会话、引用及检查点生效。
+
+- GET/POST /chat/conversations：GET分页{items,total}；POST带Idempotency-Key及{kind:selected|filtered|authorized,ids?,filters?}。filters只接受kind/skill/education/experience，复用当前页面原文筛选语义。后端固定实际人才ID；selected空数组为空，不能扩大。
+- GET /chat/conversations/{id}：本人且当前仍有全部会话范围权限；历史各轮引用再次检查来源权限/归属，不直接返缓存敏感回答。
+- POST /chat/conversations/{id}/messages（202）：幂等键及{version,question,confirm:false}；同会话活动任务互斥，返回持久job。明确待确认计划使用confirm=true；这不是普通技能逐条确认。追问继承结构条件与已明确语义判据；取消/松开条件和扩大范围需确认。
+- GET /chat/jobs/{id}：技术状态、run_version、范围、计划、回答、逐人结果/版本/过期、覆盖进度及attempts。检索未列入结果的人不计作已完成语义评估；完整语义人数逐人处理，不用top-k数量当总数。
+- GET /chat/jobs/{id}/events?offset=0：带Bearer的SSE。progress输出真实覆盖进度，entry输出已验证且当前授权的逐人结果，chunk输出已验证汇总文本，done/reconnect/revoked控制连接。offset是已接收字符位置；重连只读同一任务，不创建新消息或任务。不是未经校验的模型token透传。每个输出块重新鉴权。
+- POST /chat/jobs/{id}/retry（202）：{version}，最多3个执行版本，只重试可恢复失败，成功条目不重做；撤权及恢复耗尽不可直接重试。
+- GET /chat/jobs/{job}/entries/{entry}/citations/{fact}：人才/事实/来源/位置/版本，必须属于该条目实际证据；人工事实返回人工记录，不伪造文件。文件原文仍通过既有受控任务/文件接口。
+
+Plan仅允许intent、kind、skill、education(eq/ge)、years(ge/gt)、skill_years与skill_years_op、semantic、criteria、clarification、expand；所有数值/枚举/长度受限，任意SQL、函数名、写操作参数均拒绝。years是总工作经验，skill_years使用独立技能时间证据；未知不计符合，不借总年限。最高已完成学历精确等值与至少区分，“超过”严格大于。上界/区间、无法表达的复杂条件保守澄清，不擅自反转。模型JSON偶发不合schema只允许一次受控修复，仍完整白名单及权限校验。
+
+管理补齐：GET /admin/menu-options；PUT /admin/roles/{id}/menus={version,menus}（account.manage）；GET /admin/binding-choices?q=&offset=&limit=为账号绑定提供最小姓名/人才ID/身份/部门元数据，不能读取联系方式或正文；GET /admin/user-page返回带角色、绑定姓名的账号分页，UserUpdate可显式修改department_id；未提供部门保持原值。
+GET /admin/logs/audit及/ai返回{items,total}，支持offset/limit、action包含与state精确筛选，audit.read；没有正文查看或日志编辑接口。PATCH /catalog/{kind}/{id}除启停外可条件更新名称，部门岗位关联身份不可变。菜单显示配置不替代功能撤权，撤权仍通过grants。

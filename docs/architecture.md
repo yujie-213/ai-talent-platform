@@ -1,12 +1,12 @@
 # 模块导航
 
-## 第四阶段进行中入口
+## 第四阶段交付入口（待用户验收）
 
 assessment_routes.py → schemas/assessment.py → services/assessments.py：客观题校验、不可变试卷快照、当前员工绑定、草稿版本更新、原子提交、独立事务规则评分及唯一成绩。AssessmentWorkspace.vue提供题库/发布/分配/本人答题/历史，人才详情复用测评历史；AssessmentRadar.vue只显示本试卷实测维度，不跨试卷推断能力。未改匹配算法及其历史。
 
-workbench.py从当前授权查询真实人才/解析/本人匹配/测评统计；Workbench.vue为默认入口。RoleWorkspace.vue复用已有角色与授权接口，菜单按动作显示；App.vue基础资料启停使用新增条件更新接口，不删除历史归属。h206cc47e008及i317dd58f009已应用开发库。统一聊天和AI调用日志页面仍待实现，不能将本小节视为第四阶段整体完成。实际状态见stage-four.md。
+workbench.py从当前授权查询真实人才/解析/本人匹配/测评及聊天统计；Workbench.vue为默认入口。RoleWorkspace.vue复用已有角色与授权接口，菜单显示配置与当前功能权限取交集；App.vue基础资料支持新增、改名和启停，不删除历史归属。ChatWorkspace.vue与LogWorkspace.vue提供统一档案聊天及安全日志页面。四条新增迁移均已应用开发库，完整链路见本页末节，验收步骤见stage-four-verification.md。
 
-模块化单体；Windows API / Vue 前端，Linux Celery Worker、dispatcher 和 indexer 共用后端代码。MySQL 为业务权威源，Redis仅投递；第二阶段接入隔离CPU PaddleOCR、生成模型API、本地Ollama bge-m3和既有Milvus。固定流水线无须LangGraph或新的持久化服务。
+模块化单体；Windows API / Vue 前端，Linux Celery Worker、dispatcher 和 indexer 共用后端代码。MySQL 为业务权威源，Redis仅投递；第二阶段接入隔离CPU PaddleOCR、生成模型API、本地Ollama bge-m3和既有Milvus。第二、三阶段固定流水线保持原有任务机制；第四阶段统一聊天使用LangGraph及现有MySQL检查点，不增加数据库服务。
 
 | 入口 | 职责 |
 |---|---|
@@ -58,3 +58,11 @@ match_tasks.py负责业务快照、授权、可靠执行和短事务；match_rul
 
 
 年限审查后：year_evidence.py集中YearClaim/YearEvidence区间、否定/模糊、总与技能归属及JD引用数值位置；match_rules和jd_assist共享它，不再各自截取裸数字。规则v3通过match_tasks/candidates/MatchWorkspace显示历史失效；无需新增表或依赖。实际回归/部署见stage-three-review.md。
+
+
+## 第四阶段完整业务链
+ChatWorkspace（档案/勾选/筛选上下文与同入口追问）→chat_routes（HTTP/SSE）→archive_chat（范围/版本/幂等/持久成果及引用）→repositories/chat_access固定授权范围查询→chat_jobs（outbox/attempt/租约/执行版本）→既有Celery talent.chat→archive_graph（意图、受控准备、检索/证据评估、回答）→MySQLChatSaver原生LangGraph检查点。模型仅生成Plan或逐人证据参数，不接触SQL执行器/写工具。
+
+chat_queries复用match_rules/year_evidence的学历、技能与年限纯规则并校验逐人引用；普通结构人数走完整MySQL人才ID范围。语义检索用实时授权事实快照、本地bge-m3与BM25，最多10人证据核验，仅报告当前找到；完整语义人数确认判据后逐人核验全部明确范围。MySQL是权威源，不等待Milvus异步索引，也不以向量召回数量代替总人数；既有Milvus索引保持运行与更新。
+
+ai_logging为生成/OCR/Embedding共享安全元数据入口；management提供菜单、绑定最小元数据、账号分页和审计/AI分页，LogWorkspace/RoleWorkspace/App提供实际操作。Workbench同时显示真实授权人才、解析、本人匹配、测评和聊天任务。后台使用ai-talent-stage4-backend:0.4.0及compose.stage4.yml，沿用独立OCR环境、MySQL/Redis/已有向量与生成配置。

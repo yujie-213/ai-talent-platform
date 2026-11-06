@@ -58,7 +58,17 @@ match_runs绑定requirement_id/有效版本、创建人、不可变需求/范围
 迁移接f084aa25c006，两条均已应用本机开发库；历史共享迁移未改写。匹配不再创建虚假File或借用解析Task外键。独立JSON条件新增skill_experience_years，无须DDL；旧确认版本/匹配快照保持原样，缺省为不限制。规则v2与权重/模型配置随每个任务保存，旧v1记录不回写。快照事实可带经授权的文件/任务/定位/引用，读取再次检查当前文件归属及读权，不能把快照当权限旁路。
 
 
-## 第四阶段已实现增量（整体仍进行中）
+## 第四阶段测评及基础资料增量
 h206cc47e008：assessment_questions保存严格题目JSON、编辑version及enabled；assessment_papers保存标题及编辑版本；assessment_paper_versions以(paper_id,number)唯一，snapshot拷贝题目/选项/答案/维度/分值及exact-set-v1规则，不提供修改接口。assessment_assignments固定paper_version_id/employee_id/talent_id/assigned_by，分别保存draft、final_answers、version、state、提交时间及安全错误码；assessment_results以assignment_id为主键保证唯一最终成绩，保存总分/满分/实际维度及规则版本。原始答案随任务保留，成绩独立入档不覆盖历史，不写匹配分。
 
-i317dd58f009：departments/positions/pools/department_positions增加enabled与version，已有行回填启用/版本1。停用采用条件更新，不删除外键或历史归属；新建部门岗位、新人才归属及新需求拒绝使用已停用基础资料。既有归属可以继续保留和编辑资料。两条迁移已应用开发库，没有改写共享历史迁移。聊天模型尚未落表。
+i317dd58f009：departments/positions/pools/department_positions增加enabled与version，已有行回填启用/版本1。停用采用条件更新，不删除外键或历史归属；新建部门岗位、新人才归属及新需求拒绝使用已停用基础资料。既有归属可以继续保留和编辑资料。两条迁移已应用开发库，没有改写共享历史迁移。聊天及菜单后续增量见下一节。
+
+
+## 第四阶段聊天及菜单增量（j428ee69a010 / k539ff70b011）
+chat_conversations保存所属账号、固定范围ID/筛选/北京时间as_of、已明确条件、待确认计划与编辑版本；chat_messages以会话+sequence唯一，保存问题、当轮范围/条件/回答及时间。chat_jobs一消息一任务，保存技术状态、run_version/租约/安全错误码；chat_entries以任务+人才ID唯一，保存当轮人才/有效事实/来源版本快照、支持/未知/相反证据/结构排除/失败/未检索状态及引用。chat_attempts与chat_outbox分别以任务+执行版本唯一。
+
+chat_checkpoints为原生LangGraph同步检查点适配表，以job_id/run_version/checkpoint_id唯一，保存父检查点、JSON checkpoint/metadata及去重pending_writes。图状态仅job_id/version/phase等技术标识；不保存权限凭证，不把检查点当业务成果。不同执行版本隔离命名空间，旧执行无法写新成果；恢复读取同样实时鉴权。只允许JSON，不使用pickle或任意Python对象反序列化。
+
+ai_calls只保存operation/target_id/model/state/elapsed_ms/error_code/created_at，不保存提示词、聊天/简历正文、URL或密钥。生成模型、Embedding与OCR共享元数据记录；聊天/简历/JD按可用任务或追踪编号关联，部分独立索引调用可无目标编号。roles新增enabled_menus JSON：历史NULL表示按当前功能授权派生可见菜单；显式数组用于显示配置，仍与功能授权取交集，不能扩大后端权限。菜单与授权修改共用角色version检测冲突。
+
+四条第四阶段增量迁移均已应用开发库；j/k接已共享h/i，未修改历史数据归属、旧需求/匹配结果或账户。

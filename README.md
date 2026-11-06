@@ -1,10 +1,12 @@
 # AI 数字化人才平台
 
 
-当前交付（2026-11-06）：**第三阶段已实现/已验证，待用户验收**。本机页面 http://127.0.0.1:5173 、API http://127.0.0.1:8000 已运行。岗位需求/JD→HR确认→全授权范围匹配→证据/历史/显式应聘关联可用。验收步骤及真实结果见 [第三阶段验证](docs/stage-three-verification.md)，详细规则见 [第三阶段说明](docs/stage-three.md)。现有环境勿重新bootstrap/seed、勿删除数据库/卷/模型。
+当前交付（2026-11-06）：第一至三阶段已由李玉杰验收。**第四阶段已实现并完成本机部署和验证，待用户验收**：统一档案聊天/引用/人数与持久语义任务、轻量测评、真实工作台及管理页面。本机页面 http://127.0.0.1:5173 、API http://127.0.0.1:8000 。当前规则、验证、限制及操作步骤见 [第四阶段清单](docs/stage-four.md) / [第四阶段验证与验收步骤](docs/stage-four-verification.md)。现有环境勿重新bootstrap/seed、勿删除库/卷/模型。未进入第五阶段，不发布公网服务。
 
 
-当前：第一阶段已验收；第二阶段“真实简历解析与筛选”待用户验收。未进入第三阶段。
+## 历史阶段启动与验证说明
+
+以下第一至三阶段段落保留历史实现与启动记录，阶段状态以本页顶部及第四阶段文档为准。
 第二阶段请直接看本页末尾的“第二阶段启动与页面验收”、[逐项验证](docs/stage-two-verification.md)及[进度](docs/progress.md)。本页第一阶段说明保留为底座操作与历史记录。
 
 
@@ -160,13 +162,29 @@ docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml 
 第三阶段年限审查已修复为规则v3；旧规则结果会提示过期，先核对已保存需求条件再新建匹配，旧结果不会被自动覆盖。上下界/否定和总/技能年限分开处理，JD按完整原文归属校验。详细复现、命令和实际结果见docs/stage-three-review.md。
 
 
-## 第四阶段进行中：测评、工作台与部分管理
-第三阶段已由李玉杰明确验收。第四阶段获完整授权，执行清单见docs/stage-four.md；当前只交付了测评闭环、实时工作台、角色范围页面及基础资料启停，统一聊天/语义任务和其余管理补齐仍未完成，整体尚不可验收。
+## 第四阶段：聊天、测评与管理
 
-本机入口仍为 http://127.0.0.1:5173 ，登录默认进入工作台，数字来自当前权限。合成账号信息保留data/local-access.txt，不贴聊天、不提交。已有合成HR显式追加assessment.manage(global)、assessment.assign/read(internal_all)，其他身份未自动扩权；管理员在“角色与菜单权限”配置实际动作与对应范围。
+登录默认工作台（或该角色配置的首个可见菜单）。数字均按当前授权实时计算，包括人才、解析、本人匹配、测评及本人聊天任务。合成账号仍在data/local-access.txt，不贴聊天、不入Git。
 
-页面操作：HR→轻量测评→题库维护（单选/多选/判断、维度、分值、正确选项）→试卷发布（选择题目，发布不可变版本）→分配测评（版本及绑定员工）。员工→轻量测评→答题/查看→保存草稿→提交锁定；未答提示计零分；结果和原始作答保留。HR可在测评任务及人才详情查看授权历史。测评分数不加入岗位匹配分，少于三个实测维度用条形图；雷达图仅归一化同一试卷实际维度，不代表总体能力。
+统一聊天：可在人才详情点击“与当前人才档案对话”，或在候选人列表勾选后聊天、按当前筛选聊天。也可从档案聊天新建明确的全部授权范围会话。直接表达找人、单人问答、多人比较、结构化人数和追问，不选SQL/RAG模式。范围/条件/资料版本可核对；空选择不查全库，扩大范围或松开条件需确认。语义全范围人数先确认判据，任务卡片展示逐人覆盖、支持、未知和失败；普通语义检索只报告当前找到结果。来源按钮再次鉴权，人工事实不伪造文件。断线用原任务重连/历史恢复，不自动重问。
 
-基础资料页面可启停部门、公司岗位、部门岗位和人才库，停用不删除历史；角色与菜单权限页面可建立角色、配置功能与对应数据范围，再在账号管理启停/配置角色及绑定人才。菜单按当前权限显示，后端仍逐次鉴权。
+测评：HR题库维护→发布不可变版本→分配绑定员工；员工保存草稿→提交锁定→查看规则成绩和实测维度。HR在测评任务及人才详情查看授权历史。未答零分、多选完全正确得分，评分失败保留原始提交，通过原任务恢复评分。测评分数不加入岗位匹配，少于三个实测维度用条形图。
 
-本轮新增迁移h206cc47e008、i317dd58f009已在本机应用，继续使用原MySQL/Redis及Worker镜像，无删库/重置/服务升级。重新部署需先显式运行`.venv/Scripts/python -m alembic -c backend/alembic.ini upgrade head`，再按上文方式重载API/后台；不要重复seed。验证命令与限制见docs/stage-four-verification.md。
+管理：账号分页、启停、部门、角色及按姓名绑定；部门/公司岗位/部门岗位/人才库新增、改名或停用；角色功能及独立数据范围；角色菜单显示；操作审计和AI调用分页筛选。菜单与功能授权取交集，隐藏菜单不代替功能撤权。管理员仅为绑定提供最小人才身份元数据，无默认正文、联系方式、聊天和测评内容权。HR授权内完整联系方式规则不变。
+
+本机已应用h206cc47e008、i317dd58f009、j428ee69a010、k539ff70b011，后台镜像ai-talent-stage4-backend:0.4.0。LangGraph与新增传递依赖已锁定，沿用0.2.1基础镜像及原独立OCR环境；未升级MySQL/Redis/Milvus/Ollama等已有服务。
+
+已有阶段三环境的增量部署（PowerShell，项目根目录）：
+```powershell
+.venv/Scripts/python -m pip install -r backend/requirements.lock.txt
+.venv/Scripts/python -m alembic -c backend/alembic.ini upgrade head
+docker build -f infra/Dockerfile.stage4 -t ai-talent-stage4-backend:0.4.0 .
+docker compose --project-name ai-talent-stage1 --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml -f infra/compose.stage4.yml up -d --no-deps worker dispatcher indexer
+$env:PYTHONPATH = "$PWD/backend"
+.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+如8000已有API，先确认并停止本项目旧API，再启动新进程；不要重复启动。页面继续使用frontend下`npm run dev`的5173本机入口，生产构建`npm --prefix frontend run build`。以上不重置库、卷或账号，不重复seed。
+
+验证入口：`.venv/Scripts/python -m pytest -q --tb=short`；真实隔离库`.venv/Scripts/python scripts/test-mysql.py`；合成真实模型`.venv/Scripts/python scripts/verify-chat-live.py`；真实恢复`.venv/Scripts/python scripts/verify-chat-recovery-live.py`；页面`npm --prefix frontend run test:chat-live`、`test:assessment-live`、`test:browser`。故障脚本只操作本项目并finally恢复，不要同时运行其他本项目故障脚本。精确结果、替身和未验证项以验证文档为准，样本/截图/报告仅在忽略data目录。
+
+真实DOCX来源链使用`.venv/Scripts/python scripts/verify-chat-file-live.py`，需要已安装的评测依赖`backend/requirements-evaluation.txt`；聊天页面脚本依次读取verify-chat-live与verify-chat-file-live生成的本机合成报告。真实管理写操作为`npm --prefix frontend run test:management-live`，新合成账号最终禁用解绑；`test:chat-late-response`仅注入网络延时，后端响应真实。浏览器工具已锁定Playwright1.65.0以兼容本机Edge原文件下载，更新已有前端依赖执行`npm --prefix frontend ci`，不重装或升级已有浏览器/后台服务。

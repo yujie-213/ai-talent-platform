@@ -1,12 +1,24 @@
-# 当前交接：第三阶段已验收，第四阶段进行中
+# 当前交接：第四阶段已部署，待用户验收
 
 2026-11-06：李玉杰已明确验收第三阶段并授权完整第四阶段及正常提交推送，不再等待计划审批。当前分支codex/stage-four-chat-assessment，由7c322a3建立，含c384b97修复和规则v3；远端第三阶段同HEAD，无后续差异，开始工作区干净。执行清单stage-four.md，先基线验证，再测评闭环、管理与真实工作台、LangGraph统一聊天和语义任务，全部验证部署后才标待用户验收。以下为历史交接，授权和阶段状态以本段为准。
 
-当前成果入口：services/assessments.py、api/assessment_routes.py、schemas/assessment.py、AssessmentWorkspace/AssessmentRadar；workbench.py/Workbench与RoleWorkspace、App基础资料启停。h206cc47e008/i317dd58f009已应用开发库，API8000/页面5173/既有后台已重载，数据保留。真实页面脚本frontend/scripts/assessment-live.mjs保留合成测评并仅向合成HR追加显式测评授权；不重新seed。
+业务入口：services/assessments.py、api/assessment_routes.py、AssessmentWorkspace/AssessmentRadar为完整测评链；api/chat_routes.py、services/archive_chat/chat_jobs/chat_queries.py、repositories/chat_access.py、ai/archive_graph/chat_checkpoint.py与ChatWorkspace为统一聊天及可靠语义任务；management.py/management_routes.py、App/RoleWorkspace/LogWorkspace为账号绑定、菜单、日志及管理页面；workbench.py/Workbench为真实统计。路由/Service/Repository/AI职责保持分离，没有新增微服务或数据库服务。
 
-验证：原基线archive独立SQLite141通过；开发中完整SQLite147通过、最新定向14通过、真实MySQL首批4及管理6通过；真实Edge测评/三账号机制链路及合成分页/JD保护通过。最终真实隔离MySQL完整149通过/626.53秒，代码提交821aeef已推送origin同分支；最终API重载及健康通过。实际命令和限制见stage-four-verification.md。报告/截图/账号仍在忽略data，勿入Git。LangGraph1.2.20只在Windows项目.venv预检安装、pip check通过，尚未进锁文件/镜像或聊天实现。
+验证：原基线archive独立SQLite141通过；第四阶段完整SQLite164通过/457.88秒、真实独立MySQL完整164通过/1041.06秒，之后边界行为采用定向回归，末轮聊天15通过/62.50秒及最终MySQL4通过/57.95秒。真实模型三份合成资料、DOCX解析和原文件字节、Edge聊天/测评/管理写操作、迟到传输响应、Redis停机及Worker强杀恢复通过。前端类型及生产构建、Windows/Linux pip check通过；完整命令、替身与限制见stage-four-verification.md，不能把这些数相加或视为AI总体准确率。
 
-必须继续：统一档案聊天（LangGraph、受控计划、范围/追问/澄清、逐人证据、实时权限、流式）、独立可恢复语义全范围任务、AI调用元数据及管理页面完整补齐，再真实模型/浏览器/任务故障恢复和全回归。无需要负责人重新授权的问题；不可将当前子项当作整体可验收，不可进入第五阶段。最近代码HEAD由git log核对，最后文档提交不循环自引用。
+部署：h206cc47e008/i317dd58f009/j428ee69a010/k539ff70b011已应用开发库，当前head=k539ff70b011。LangGraph1.2.20/core1.7.6/checkpoint4.3.1锁入业务依赖，Windows与Linux均验证；JSON原生MySQL检查点与业务成果分离。镜像ai-talent-stage4-backend:0.4.0基于原0.2.1，独立OCR环境不变；仅项目worker/dispatcher/indexer重载，API8000/页面5173本机运行。启动命令见README末节，勿运行历史初始bootstrap/seed。没有升级原MySQL/Redis/Milvus/Ollama或其他应用，没有删除历史数据。
+
+交接约束：会话及任务只限创建人，当前chat.use与talent.read取交集；文件引用还检查file.read及Task/File归属。旧轮次执行不能覆盖新对话上下文；成功条目重试复用，最多3个执行版本。语义人数先明确判据后全范围逐人评估，检索只报告当前找到。能力维度来自规则成绩，不从简历推算，不参与匹配分。账号绑定仅提供最小身份元数据，系统管理员无默认正文权限。
+
+本机证据在忽略data/stage-four及data/local-access.txt，勿入Git或输出密码/正文。脚本会保留清楚标注的合成档案/试卷/角色；管理写操作脚本最终禁用并解绑新合成账号。只对合成HR显式追加本阶段动作；原有业务数据保留。故障脚本不可并行运行，finally已恢复服务。当前无外部阻塞或待业务决策项；下一步是负责人按stage-four-verification.md验收，仍有第二阶段整体体验/标签优化及大规模效果评测限制，不自动进入第五阶段。
+
+Git：当前分支codex/stage-four-chat-assessment，基线7c322a3（含c384b97），先前子项821aeef/cd81a74保留；本轮后端/前端代码提交见下方收尾记录，最后文档HEAD通过git log核对，避免自引用。正常推送同名远端分支，不强推、不合并main，工作区及远端最终检查在交付收尾执行。
+
+收尾代码提交：后端/任务/迁移/验证脚本8caf130，前端/管理页面/测试驱动8609aa2，均已正常推送。当前最近代码HEAD为8609aa2；最终文档提交用git log查看。远端origin为既有yujie-213/ai-talent-platform，仅推送本任务分支，main未合并。提交前已检查忽略目录及本机实际秘密值，未命中待提交内容；最终工作区与远端通过git status和ls-remote核对。
+
+---
+
+以下为第三阶段及更早历史交接；状态以本页顶部为准。
 
 2026-11-06（北京时间）。负责人李玉杰，助手星星。用户已明确授权完成第三阶段，本轮完成后待验收，不进入第四阶段。
 

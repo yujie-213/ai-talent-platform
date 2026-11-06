@@ -82,6 +82,10 @@ def create(db, user, body, key: str, request_id: str) -> dict:
     previous = existing(db, user, 'requirement.create', key, payload)
     if previous:
         return detail(db, user, previous)
+    from app.models.entities import Department, Position
+    dp = db.get(DepartmentPosition, body.department_position_id)
+    if not dp.enabled or not db.get(Department, dp.department_id).enabled or not db.get(Position, dp.position_id).enabled:
+        fail(422, 'VALIDATION_ERROR', '已停用部门或岗位不能创建新需求，历史需求保留')
     item = RecruitmentRequirement(department_id=department_id,
         department_position_id=body.department_position_id, draft=payload, created_by=user.id)
     db.add(item)

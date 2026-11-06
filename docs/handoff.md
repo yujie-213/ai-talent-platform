@@ -1,4 +1,12 @@
-# 当前交接：第三阶段已实现/已验证，待用户验收
+# 当前交接：第三阶段已验收，第四阶段进行中
+
+2026-11-06：李玉杰已明确验收第三阶段并授权完整第四阶段及正常提交推送，不再等待计划审批。当前分支codex/stage-four-chat-assessment，由7c322a3建立，含c384b97修复和规则v3；远端第三阶段同HEAD，无后续差异，开始工作区干净。执行清单stage-four.md，先基线验证，再测评闭环、管理与真实工作台、LangGraph统一聊天和语义任务，全部验证部署后才标待用户验收。以下为历史交接，授权和阶段状态以本段为准。
+
+当前成果入口：services/assessments.py、api/assessment_routes.py、schemas/assessment.py、AssessmentWorkspace/AssessmentRadar；workbench.py/Workbench与RoleWorkspace、App基础资料启停。h206cc47e008/i317dd58f009已应用开发库，API8000/页面5173/既有后台已重载，数据保留。真实页面脚本frontend/scripts/assessment-live.mjs保留合成测评并仅向合成HR追加显式测评授权；不重新seed。
+
+验证：原基线archive独立SQLite141通过；开发中完整SQLite147通过、最新定向14通过、真实MySQL首批4及管理6通过；真实Edge测评/三账号机制链路及合成分页/JD保护通过。完整MySQL最终结果见stage-four-verification.md。报告/截图/账号仍在忽略data，勿入Git。LangGraph1.2.20只在Windows项目.venv预检安装、pip check通过，尚未进锁文件/镜像或聊天实现。
+
+必须继续：统一档案聊天（LangGraph、受控计划、范围/追问/澄清、逐人证据、实时权限、流式）、独立可恢复语义全范围任务、AI调用元数据及管理页面完整补齐，再真实模型/浏览器/任务故障恢复和全回归。无需要负责人重新授权的问题；不可将当前子项当作整体可验收，不可进入第五阶段。最近代码HEAD由git log核对，最后文档提交不循环自引用。
 
 2026-11-06（北京时间）。负责人李玉杰，助手星星。用户已明确授权完成第三阶段，本轮完成后待验收，不进入第四阶段。
 

@@ -56,3 +56,9 @@ S3-02在draft/snapshot JSON契约增加jd_text（最多20000字符）；旧记�
 match_runs绑定requirement_id/有效版本、创建人、不可变需求/范围/规则JSON快照，保存技术state、业务outcome、run_version/lease_until/error_code/时间；match_entries以(run_id,talent_id)唯一，保存人才/事实快照、BM25信号、逐人状态、检查/证据/评分结果及失败码；match_attempts以(run_id,run_version)唯一保存尝试/过期/结束；match_outbox同样唯一，保存投递状态/次数。talent_requirements复合主键为(talent_id,requirement_id)，是显式应聘关联，不充当身份/职业/授权。
 
 迁移接f084aa25c006，两条均已应用本机开发库；历史共享迁移未改写。匹配不再创建虚假File或借用解析Task外键。独立JSON条件新增skill_experience_years，无须DDL；旧确认版本/匹配快照保持原样，缺省为不限制。规则v2与权重/模型配置随每个任务保存，旧v1记录不回写。快照事实可带经授权的文件/任务/定位/引用，读取再次检查当前文件归属及读权，不能把快照当权限旁路。
+
+
+## 第四阶段已实现增量（整体仍进行中）
+h206cc47e008：assessment_questions保存严格题目JSON、编辑version及enabled；assessment_papers保存标题及编辑版本；assessment_paper_versions以(paper_id,number)唯一，snapshot拷贝题目/选项/答案/维度/分值及exact-set-v1规则，不提供修改接口。assessment_assignments固定paper_version_id/employee_id/talent_id/assigned_by，分别保存draft、final_answers、version、state、提交时间及安全错误码；assessment_results以assignment_id为主键保证唯一最终成绩，保存总分/满分/实际维度及规则版本。原始答案随任务保留，成绩独立入档不覆盖历史，不写匹配分。
+
+i317dd58f009：departments/positions/pools/department_positions增加enabled与version，已有行回填启用/版本1。停用采用条件更新，不删除外键或历史归属；新建部门岗位、新人才归属及新需求拒绝使用已停用基础资料。既有归属可以继续保留和编辑资料。两条迁移已应用开发库，没有改写共享历史迁移。聊天模型尚未落表。

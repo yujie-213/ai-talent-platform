@@ -17,7 +17,7 @@ const formItem=label=>page.locator('.el-form-item').filter({has:page.locator('.e
 const input=label=>formItem(label).locator('input,textarea').first()
 async function firstOption(label){const select=formItem(label).locator('.el-select');await select.click();const controls=await select.getByRole('combobox').getAttribute('aria-controls');if(!controls)throw new Error('下拉框缺少受控列表');await page.locator(`[id="${controls}"]`).getByRole('option').first().click()}
 async function option(label,text){await formItem(label).locator('.el-select').first().click();await page.getByRole('option',{name:text,exact:true}).click()}
-async function login(p,username,password){await p.goto(base);await p.locator('input').nth(0).fill(username);await p.locator('input').nth(1).fill(password);const response=p.waitForResponse(r=>r.url().endsWith('/auth/login')&&r.request().method()==='POST');await p.getByRole('button',{name:'登录',exact:true}).click();const value=await(await response).json();await p.getByRole('heading',{name:'候选人筛选',exact:true}).waitFor();return value.data.token}
+async function login(p,username,password){await p.goto(base);await p.locator('input').nth(0).fill(username);await p.locator('input').nth(1).fill(password);const response=p.waitForResponse(r=>r.url().endsWith('/auth/login')&&r.request().method()==='POST');await p.getByRole('button',{name:'登录',exact:true}).click();const value=await(await response).json();await p.getByRole('heading',{name:'工作台',exact:true}).waitFor();return value.data.token}
 try{
   await login(page,'demo.hr',demoPassword)
   await page.getByRole('button',{name:'岗位需求',exact:true}).click()

@@ -1,5 +1,11 @@
 # 模块导航
 
+## 第四阶段进行中入口
+
+assessment_routes.py → schemas/assessment.py → services/assessments.py：客观题校验、不可变试卷快照、当前员工绑定、草稿版本更新、原子提交、独立事务规则评分及唯一成绩。AssessmentWorkspace.vue提供题库/发布/分配/本人答题/历史，人才详情复用测评历史；AssessmentRadar.vue只显示本试卷实测维度，不跨试卷推断能力。未改匹配算法及其历史。
+
+workbench.py从当前授权查询真实人才/解析/本人匹配/测评统计；Workbench.vue为默认入口。RoleWorkspace.vue复用已有角色与授权接口，菜单按动作显示；App.vue基础资料启停使用新增条件更新接口，不删除历史归属。h206cc47e008及i317dd58f009已应用开发库。统一聊天和AI调用日志页面仍待实现，不能将本小节视为第四阶段整体完成。实际状态见stage-four.md。
+
 模块化单体；Windows API / Vue 前端，Linux Celery Worker、dispatcher 和 indexer 共用后端代码。MySQL 为业务权威源，Redis仅投递；第二阶段接入隔离CPU PaddleOCR、生成模型API、本地Ollama bge-m3和既有Milvus。固定流水线无须LangGraph或新的持久化服务。
 
 | 入口 | 职责 |

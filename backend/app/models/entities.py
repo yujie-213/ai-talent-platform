@@ -11,16 +11,22 @@ class Department(Base):
     __tablename__ = 'departments'
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(100), unique=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
 
 class Position(Base):
     __tablename__ = 'positions'
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(100), unique=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
 
 class Pool(Base):
     __tablename__ = 'pools'
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(100), unique=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
 
 class DepartmentPosition(Base):
     __tablename__ = 'department_positions'
@@ -28,6 +34,8 @@ class DepartmentPosition(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     department_id: Mapped[str] = mapped_column(ForeignKey('departments.id'))
     position_id: Mapped[str] = mapped_column(ForeignKey('positions.id'))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
 
 class User(Base):
     __tablename__ = 'users'
@@ -291,4 +299,56 @@ class TalentRequirement(Base):
     talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'), primary_key=True)
     requirement_id: Mapped[str] = mapped_column(ForeignKey('recruitment_requirements.id'), primary_key=True)
     created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class AssessmentQuestion(Base):
+    __tablename__ = 'assessment_questions'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    content: Mapped[dict] = mapped_column(JSON)
+
+
+class AssessmentPaper(Base):
+    __tablename__ = 'assessment_papers'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    title: Mapped[str] = mapped_column(String(100))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class AssessmentPaperVersion(Base):
+    __tablename__ = 'assessment_paper_versions'
+    __table_args__ = (UniqueConstraint('paper_id', 'number'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    paper_id: Mapped[str] = mapped_column(ForeignKey('assessment_papers.id'))
+    number: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[dict] = mapped_column(JSON)
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class AssessmentAssignment(Base):
+    __tablename__ = 'assessment_assignments'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    paper_version_id: Mapped[str] = mapped_column(ForeignKey('assessment_paper_versions.id'))
+    employee_id: Mapped[str] = mapped_column(ForeignKey('users.id'), index=True)
+    talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'), index=True)
+    assigned_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    state: Mapped[str] = mapped_column(String(20), default='pending')
+    draft: Mapped[dict] = mapped_column(JSON, default=dict)
+    final_answers: Mapped[dict | None] = mapped_column(JSON)
+    submitted_at: Mapped[int | None] = mapped_column(Integer)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class AssessmentResult(Base):
+    __tablename__ = 'assessment_results'
+    assignment_id: Mapped[str] = mapped_column(ForeignKey('assessment_assignments.id'), primary_key=True)
+    total: Mapped[int] = mapped_column(Integer)
+    maximum: Mapped[int] = mapped_column(Integer)
+    dimensions: Mapped[dict] = mapped_column(JSON)
+    rules_version: Mapped[str] = mapped_column(String(40))
     created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))

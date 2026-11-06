@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
+    "test:assessment-live": "node scripts/assessment-live.mjs",
     "test:browser": "node scripts/smoke.mjs",
     "test:task-pagination": "node scripts/task-pagination.mjs",
     "test:jd-assist": "node scripts/jd-assist.mjs",

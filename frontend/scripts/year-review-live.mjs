@@ -18,7 +18,7 @@ try{
   const requirement=await(await context.request.get('http://127.0.0.1:8000/api/requirements/'+old.requirement_id,{headers})).json()
   const historic=await(await context.request.get('http://127.0.0.1:8000/api/matches/'+old.run_id,{headers})).json()
   if(!historic.data.rules_stale)throw new Error('测试需要旧规则合成记录')
-  await page.getByRole('heading',{name:'候选人筛选',exact:true}).waitFor()
+  await page.getByRole('heading',{name:'工作台',exact:true}).waitFor()
   await page.getByRole('button',{name:'岗位需求',exact:true}).click()
   await expect(page.locator('.el-table__body tbody tr').first()).toBeVisible()
   const target=page.getByRole('cell',{name:requirement.data.draft.title,exact:true})

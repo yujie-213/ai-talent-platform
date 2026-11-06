@@ -11,7 +11,7 @@ try {
   await page.goto('http://127.0.0.1:5173')
   await page.locator('input').nth(0).fill('demo.hr');await page.locator('input').nth(1).fill(password)
   await page.getByRole('button',{name:'登录',exact:true}).click()
-  await page.getByRole('heading',{name:'候选人筛选',exact:true}).waitFor()
+  await page.getByRole('heading',{name:'工作台',exact:true}).waitFor();await page.getByRole('button',{name:'候选人筛选',exact:true}).click();await page.getByRole('heading',{name:'候选人筛选',exact:true}).waitFor()
   await page.locator('input[type=file]').setInputFiles('../data/stage-two-evaluation/synthetic-resume.png')
   const accepted = page.waitForResponse(r=>r.url().includes('/api/imports/') && r.request().method()==='POST')
   await page.getByRole('button',{name:'上传并解析',exact:true}).click()

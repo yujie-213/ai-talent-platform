@@ -85,7 +85,7 @@ def set_grants(role_id: str, body: GrantsInput, request_id: str, user: User, db:
             if g.scope == 'department' and (not g.scope_id or not db.get(Department, g.scope_id)):
                 fail(422, 'VALIDATION_ERROR', '指定部门不存在')
             continue
-        administrative = g.action in ('account.manage', 'catalog.manage', 'audit.read')
+        administrative = g.action in ('account.manage', 'catalog.manage', 'audit.read', 'assessment.manage')
         if administrative != (g.scope == 'global'):
             fail(422, 'VALIDATION_ERROR', '管理动作只接受 global，业务动作不得使用 global')
         model = Department if g.scope == 'department' else Pool if g.scope == 'pool' else None
@@ -113,12 +113,32 @@ def create_catalog(kind: str, body: dict, request_id: str, user: User, db: DbSes
         values = (DepartmentPositionInput if kind == 'department_positions' else Named).model_validate(body).model_dump()
     except ValidationError:
         fail(422, 'VALIDATION_ERROR', '基础数据字段无效')
+    if kind == 'department_positions':
+        for field, model in [('department_id', Department), ('position_id', Position)]:
+            parent = db.get(model, values[field])
+            if not parent or not parent.enabled:
+                fail(422, 'VALIDATION_ERROR', '部门和公司岗位必须存在且启用')
     obj = CATALOG[kind](**values)
     db.add(obj)
     db.flush()
     audit(db, user, 'catalog.create', obj.id, request_id)
     db.commit()
     return row(obj)
+
+
+def edit_catalog(kind: str, object_id: str, body: dict, request_id: str, user: User, db: DbSession) -> dict:
+    require(db, user, 'catalog.manage')
+    model = CATALOG.get(kind)
+    if model is None or not db.get(model, object_id):
+        fail(404, 'NOT_FOUND', '基础资料不存在')
+    if set(body) != {'version', 'enabled'} or type(body['version']) is not int or type(body['enabled']) is not bool:
+        fail(422, 'VALIDATION_ERROR', '需要版本及启停状态')
+    if db.execute(update(model).where(model.id == object_id, model.version == body['version'])
+            .values(enabled=body['enabled'], version=body['version']+1)).rowcount != 1:
+        fail(409, 'VERSION_CONFLICT', '基础资料已变化，请刷新')
+    audit(db, user, 'catalog.status', object_id, request_id)
+    db.commit()
+    return row(db.get(model, object_id))
 
 def list_talents(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> dict:
     where = scope_clause(db, user, 'talent.read')

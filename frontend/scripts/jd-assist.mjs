@@ -12,6 +12,7 @@ await page.route('**/api/**',async route=>{
   let data
   if(path==='/api/auth/login')data={token:'synthetic-jd-ui-token'}
   else if(path==='/api/auth/me')data={id:'synthetic-user',username:'synthetic.hr',grants:['requirement.read','requirement.write'].map(action=>({action,scope:'global'}))}
+  else if(path==='/api/workbench')data={people:{},parse_tasks:{},match_entries:{},assessments:{},definitions:{}}
   else if(path==='/api/catalog')data={departments:[{id:'d',name:'合成研发部'}],positions:[{id:'p',name:'合成工程师'}],department_positions:[{id:'dp',department_id:'d',position_id:'p'}],pools:[]}
   else if(path==='/api/talents'||path==='/api/candidates')data={items:[],total:0}
   else if(path==='/api/imports')data=[]

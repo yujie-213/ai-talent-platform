@@ -79,3 +79,18 @@ S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requireme
 
 
 第三阶段年限审查补充：规则v3，GET /matches/{id}及/results新增rules_stale，候选人requirements同样标rules_stale/stale；旧规则任务重试409 RULE_VERSION_CHANGED。旧结果不回写，需核对旧需求后新建。JD年限引用必须在完整原文中核对总/技能归属、边界及引用数值；上界/区间/严格下界不能悄悄压成整型最小值。见stage-three-review.md。
+
+
+## 第四阶段测评及管理增量（整体仍进行中）
+所有路径前缀/api。新增动作assessment.manage仅global（题库/试卷）；assessment.assign与assessment.read沿用人才范围并与talent.read取交集；管理员不因身份自动获得上述动作。chat.use已加入授权白名单，但聊天接口尚未交付。
+
+- GET/POST /assessments/questions；PUT /questions/{id}带version，维护题干、kind(single/multiple/boolean)、选项{id,text}、correct选项ID集合、dimension、points(1~100)、enabled。管理投影含答案，非管理员工拒绝。
+- GET/POST /assessments/papers：发布{title,question_ids,paper_id?,version?}，POST带Idempotency-Key，旧快照不可修改；再次发布产生新版本。
+- GET /assessments/published-choices：仅分配动作可用，只返回版本ID/标题/版本号，无标准答案；GET /employees：仅当前人才读权及分配范围内已启用绑定内部员工。
+- GET /assessments/assignments?offset=0&limit=20&talent_id=可选：{items,total}，本人当前绑定或HR测评读权与人才读权交集。POST带幂等键及{paper_version_id,employee_id}。
+- GET /assessments/assignments/{id}：题目公开投影、草稿/已锁定答案、状态及成绩，不含标准答案。PUT /{id}/draft、POST /{id}/submit均为{version,answers:{题目ID:[选项ID]}}，仅当前绑定本人可写；未答计零分，非法题目/选项422，版本冲突409，已提交修改409。重复相同提交返回原记录。提交先原子锁定并提交事务，再评分。
+- POST /assessments/assignments/{id}/score：当前有访问权者可恢复submitted任务评分，保留原始答案，完成后唯一成绩；并不允许重交。评分失败状态仍submitted，error_code=SCORING_FAILED。
+- GET /workbench：当前授权下真实人才、解析任务、本人匹配明细及测评任务统计，同时返回definitions说明各口径。没有编制/缺口或演示数字。
+- PATCH /catalog/{kind}/{id}：{version,enabled}，catalog.manage全局，条件更新，保留历史；无删除接口。
+
+原有/admin/users、/admin/roles及grants接口由真实页面复用。完整聊天/语义任务/流式与AI调用日志页待后续完成，不能视为已实现。

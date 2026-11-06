@@ -14,6 +14,11 @@ from app.services import match_tasks
 from app.schemas.matching import MatchStart, Association
 from app.schemas.requirements import RequirementDraft, RequirementUpdate, RequirementConfirm, JDAssist
 router = APIRouter(prefix='/api')
+
+@router.get('/workbench')
+def workbench(request: Request, user=Depends(current_user), db=Depends(get_db)):
+    from app.services.workbench import summary
+    return response(request, summary(db, user))
 def response(request, data):
     return {'data': data, 'request_id': request.state.request_id}
 
@@ -167,6 +172,11 @@ def create_catalog(kind: str, body: dict, request: Request, user=Depends(current
 @router.get('/talents')
 def list_talents(request: Request, user=Depends(current_user), db=Depends(get_db), offset: int=Query(0, ge=0), limit: int=Query(50, ge=1, le=100)):
     return response(request, service.list_talents(request_id=request.state.request_id, user=user, db=db, offset=offset, limit=limit))
+
+
+@router.patch('/catalog/{kind}/{object_id}')
+def edit_catalog(kind: str, object_id: str, body: dict, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, service.edit_catalog(kind, object_id, body, request.state.request_id, user, db))
 
 @router.post('/talents', status_code=201)
 def create_talent(body: TalentInput, request: Request, user=Depends(current_user), db=Depends(get_db), idempotency_key: str=Header('')):

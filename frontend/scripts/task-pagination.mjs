@@ -15,9 +15,11 @@ await page.route('**/api/**', async route => {
   let data
   if (path === '/api/auth/login') data = {token:'synthetic-ui-token'}
   else if (path === '/api/auth/me') data = {id:'synthetic-user',username:'synthetic.hr',grants:['talent.read','file.read','task.run'].map(action => ({action,scope:'external_all',scope_id:null}))}
+  else if (path === '/api/workbench') data = {people:{},parse_tasks:{},match_entries:{},assessments:{},definitions:{}}
   else if (path === '/api/catalog') data = {departments:[],positions:[],department_positions:[],pools:[]}
   else if (path === '/api/candidates') data = {items:[],total:0}
   else if (path === '/api/imports') data = []
+  else if (path === '/api/assessments/assignments') data = {items:[],total:0}
   else if (path.endsWith('/extraction')) data = null
   else if (path === '/api/talents') data = {items:[talent],total:1}
   else if (path === `/api/talents/${talent.id}`) data = talent
@@ -42,7 +44,7 @@ try {
   await page.locator('input').nth(0).fill('synthetic.hr')
   await page.locator('input').nth(1).fill('synthetic-ui-password')
   await page.getByRole('button',{name:'登录',exact:true}).click()
-  await page.getByRole('heading',{name:'候选人筛选',exact:true}).waitFor()
+  await page.getByRole('heading',{name:'工作台',exact:true}).waitFor()
   await page.getByRole('button',{name:'任务记录',exact:true}).click()
   const table = page.getByTestId('task-table'), pager = page.getByTestId('task-pagination')
   await expect(page.getByTestId('task-total')).toHaveText('共 61 条任务')

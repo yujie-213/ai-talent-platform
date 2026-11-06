@@ -47,6 +47,15 @@ def validate_talent(db, values: dict):
 def save_talent(db, user, body, request_id: str, talent: Talent | None = None) -> Talent:
     values = body.model_dump(exclude={'facts', 'version'})
     validate_talent(db, values)
+    for field, model in [('department_id', Department), ('pool_id', Pool), ('department_position_id', DepartmentPosition)]:
+        target_id = values.get(field)
+        if target_id and (not talent or target_id != getattr(talent, field)) and not db.get(model, target_id).enabled:
+            fail(422, 'VALIDATION_ERROR', '已停用基础资料不能用于新的归属，历史归属仍保留')
+    if values.get('department_position_id') and (not talent or values['department_position_id'] != talent.department_position_id):
+        from app.models.entities import Position
+        dp = db.get(DepartmentPosition, values['department_position_id'])
+        if not db.get(Position, dp.position_id).enabled:
+            fail(422, 'VALIDATION_ERROR', '已停用公司岗位不能用于新的归属')
     candidate = Talent(**values)
     candidate.id = talent.id if talent else None
     if not allowed(db, user, 'talent.write', candidate):

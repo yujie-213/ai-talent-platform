@@ -1,0 +1,79 @@
+// 真实Edge→API→MySQL；仅合成账号及题目，既有业务数据保留。
+import { chromium, expect } from '@playwright/test'
+import { readFile, mkdir, writeFile } from 'node:fs/promises'
+const credentials=await readFile('../data/local-access.txt','utf8')
+const adminPassword=credentials.match(/^admin: (.+)$/m)?.[1]
+const demoPassword=credentials.match(/^demo.hr \/ demo.employee: (.+)$/m)?.[1]
+if(!adminPassword||!demoPassword)throw new Error('需要既有本机合成账号')
+async function login(name,password){return (await api('/auth/login','POST',{username:name,password})).token}
+async function api(path,method='GET',body,token,key){const r=await fetch('http://127.0.0.1:8000/api'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(key?{'Idempotency-Key':key}:{})},body:body?JSON.stringify(body):undefined});const value=await r.json();if(!r.ok)throw new Error(`${r.status} ${value.error?.code}`);return value.data}
+const admin=await login('admin',adminPassword), hr=await login('demo.hr',demoPassword), employee=await login('demo.employee',demoPassword)
+const roles=await api('/admin/roles','GET',undefined,admin), role=roles.find(r=>r.name==='合成HR')
+if(!role)throw new Error('缺少既有合成HR角色')
+const additions=[['assessment.manage','global'],['assessment.assign','internal_all'],['assessment.read','internal_all']]
+const grants=role.grants.map(({action,scope,scope_id})=>({action,scope,scope_id}))
+for(const [action,scope] of additions)if(!grants.some(g=>g.action===action&&g.scope===scope))grants.push({action,scope,scope_id:null})
+if(grants.length!==role.grants.length)await api(`/admin/roles/${role.id}/grants`,'PUT',{version:role.version,grants},admin)
+const browser=await chromium.launch({channel:'msedge',headless:true}), errors=[]
+const suffix=Date.now(), title=`合成页面测评 ${suffix}`, questionTitle=`合成判断题 ${suffix}`
+async function open(name,password){const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await page.locator('input').nth(0).fill(name);await page.locator('input').nth(1).fill(password);await page.getByRole('button',{name:'登录',exact:true}).click();await expect(page.getByRole('heading',{name:'工作台',exact:true})).toBeVisible();return {page,context}}
+async function select(page,form,label,text){await form.locator('.el-form-item').filter({has:page.locator('.el-form-item__label').filter({hasText:label})}).locator('.el-select').click();await page.getByRole('option',{name:text,exact:true}).click()}
+try{
+  const {page,context}=await open('demo.hr',demoPassword)
+  await page.getByRole('button',{name:'轻量测评',exact:true}).click()
+  await page.getByRole('button',{name:'新增题目',exact:true}).click()
+  const dialog=page.getByRole('dialog',{name:'维护题目'}), form=dialog.locator('form')
+  await form.locator('textarea').fill(questionTitle)
+  await select(page,form,'题型','判断（两个选项）')
+  await form.locator('.el-form-item').filter({hasText:'维度'}).locator('input').fill('合成规则理解')
+  await dialog.locator('.file-row input').nth(0).fill('合成正确选项')
+  await dialog.locator('.file-row input').nth(1).fill('合成错误选项')
+  await select(page,form,'标准答案','合成正确选项')
+  await dialog.getByRole('heading',{name:'维护题目'}).click()
+  await dialog.getByRole('button',{name:'保存题目',exact:true}).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.locator('.el-table__row').filter({hasText:questionTitle})).toBeVisible()
+  await page.getByRole('tab',{name:'试卷发布',exact:true}).click()
+  const publishForm=page.getByRole('tabpanel',{name:'试卷发布'}).locator('form')
+  await publishForm.locator('.el-form-item').filter({hasText:'标题'}).locator('input').fill(title)
+  await select(page,publishForm,'题目',questionTitle)
+  await page.getByRole('heading',{name:'轻量测评',exact:true}).click()
+  await publishForm.getByRole('button',{name:'发布新版本',exact:true}).click()
+  await expect(page.locator('.el-table__row').filter({hasText:title})).toBeVisible()
+  // 分配表单通过页面操作；后端选择器仅给当前授权内已绑定启用员工。
+  const employees=await api('/assessments/employees','GET',undefined,hr), target=employees.find(e=>e.username==='demo.employee')
+  if(!target)throw new Error('合成员工未绑定或无分配权限')
+  const box=page.locator('.el-card').filter({has:page.getByRole('heading',{name:'分配测评',exact:true})})
+  await box.locator('.el-select').nth(0).click();await page.getByRole('option',{name:`${title} · v1`,exact:true}).click()
+  await box.locator('.el-select').nth(1).click();await page.getByRole('option',{name:`${target.name} (${target.username})`,exact:true}).click()
+  await box.getByRole('button',{name:'分配',exact:true}).click()
+  await expect(page.locator('.el-table__row').filter({hasText:title}).last()).toContainText('待参与')
+  const task=(await api('/assessments/assignments','GET',undefined,employee)).items.find(t=>t.title===title)
+  if(!task)throw new Error('未找到实际分配任务')
+  const body=await api('/assessments/assignments/'+task.id,'GET',undefined,employee)
+  if(JSON.stringify(body).includes('correct'))throw new Error('标准答案泄漏')
+  await context.close()
+  const emp=await open('demo.employee',demoPassword)
+  await emp.page.getByRole('button',{name:'轻量测评',exact:true}).click()
+  await emp.page.locator('.el-table__row').filter({hasText:title}).getByRole('button',{name:'答题 / 查看'}).click()
+  const drawer=emp.page.getByRole('dialog',{name:'测评答题与结果'})
+  await drawer.getByText('合成正确选项',{exact:true}).click()
+  await drawer.getByRole('button',{name:'保存草稿',exact:true}).click()
+  await expect(drawer).toContainText('作答中')
+  await drawer.getByRole('button',{name:'提交并锁定答案',exact:true}).click()
+  await emp.page.getByRole('button',{name:'确定',exact:true}).click()
+  await expect(drawer).toContainText('成绩 10 / 10');await expect(emp.page.locator('.el-message-box__wrapper')).toBeHidden()
+  await mkdir('../data/stage-four',{recursive:true})
+  await emp.page.screenshot({path:'../data/stage-four/assessment-employee.png',fullPage:true})
+  await emp.context.close()
+  const adm=await open('admin',adminPassword)
+  await expect(adm.page.getByRole('button',{name:'轻量测评',exact:true})).toHaveCount(0)
+  await adm.page.getByRole('button',{name:'角色与菜单权限',exact:true}).click()
+  await expect(adm.page.getByRole('heading',{name:'角色、功能与数据范围',exact:true})).toBeVisible()
+  await expect(adm.page.getByText('合成HR · v',{exact:false})).toBeVisible()
+  await adm.page.screenshot({path:'../data/stage-four/role-management.png',fullPage:true})
+  await adm.context.close()
+  if(errors.length)throw new Error(errors.join('\n'))
+  await writeFile('../data/stage-four/assessment-live.json',JSON.stringify({passed:true,task_id:task.id,title,checks:['HR页面创建判断题','页面发布与分配','员工页面草稿与提交及真实评分','员工无标准答案','管理员无测评正文入口','角色页面','无页面异常']},null,2))
+  console.log('真实测评页面闭环通过；报告位于忽略的data/stage-four。')
+}finally{await browser.close()}

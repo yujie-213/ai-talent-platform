@@ -209,3 +209,27 @@ class TalentFieldState(Base):
     confirmed: Mapped[bool] = mapped_column(Boolean)
     source_type: Mapped[str] = mapped_column(String(20))
     source_version: Mapped[int] = mapped_column(Integer)
+
+
+class RecruitmentRequirement(Base):
+    __tablename__ = 'recruitment_requirements'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    department_id: Mapped[str] = mapped_column(ForeignKey('departments.id'), index=True)
+    department_position_id: Mapped[str] = mapped_column(ForeignKey('department_positions.id'))
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    draft: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default='draft')
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    active_version: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class RequirementVersion(Base):
+    __tablename__ = 'requirement_versions'
+    __table_args__ = (UniqueConstraint('requirement_id', 'number'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    requirement_id: Mapped[str] = mapped_column(ForeignKey('recruitment_requirements.id'))
+    number: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[dict] = mapped_column(JSON)
+    confirmed_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))

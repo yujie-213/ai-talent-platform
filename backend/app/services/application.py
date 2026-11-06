@@ -79,6 +79,12 @@ def set_grants(role_id: str, body: GrantsInput, request_id: str, user: User, db:
     if not db.get(Role, role_id):
         fail(404, 'NOT_FOUND', '角色不存在')
     for g in body.grants:
+        if g.action.startswith('requirement.'):
+            if g.scope not in ('global', 'department') or (g.scope == 'global' and g.scope_id):
+                fail(422, 'VALIDATION_ERROR', '岗位需求动作只接受全公司或指定部门范围')
+            if g.scope == 'department' and (not g.scope_id or not db.get(Department, g.scope_id)):
+                fail(422, 'VALIDATION_ERROR', '指定部门不存在')
+            continue
         administrative = g.action in ('account.manage', 'catalog.manage', 'audit.read')
         if administrative != (g.scope == 'global'):
             fail(422, 'VALIDATION_ERROR', '管理动作只接受 global，业务动作不得使用 global')

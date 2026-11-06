@@ -26,7 +26,7 @@ class DepartmentPositionInput(Input):
     position_id: str
 
 class GrantInput(Input):
-    action: Literal['talent.read', 'talent.write', 'file.read', 'file.write', 'task.run', 'account.manage', 'catalog.manage', 'audit.read']
+    action: Literal['talent.read', 'talent.write', 'file.read', 'file.write', 'task.run', 'account.manage', 'catalog.manage', 'audit.read', 'requirement.read', 'requirement.write']
     scope: Literal['self', 'department', 'internal_all', 'external_all', 'owner', 'pool', 'global']
     scope_id: str | None = None
 

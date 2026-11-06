@@ -8,9 +8,43 @@ from app.services import application as service
 from app.services import resume_tasks
 from app.services import candidates
 from app.services import resume_index
+from app.services import requirements
+from app.schemas.requirements import RequirementDraft, RequirementUpdate, RequirementConfirm
 router = APIRouter(prefix='/api')
 def response(request, data):
     return {'data': data, 'request_id': request.state.request_id}
+
+
+@router.get('/requirements')
+def requirement_page(request: Request, user=Depends(current_user), db=Depends(get_db),
+                     offset: int=Query(0, ge=0), limit: int=Query(20, ge=1, le=100)):
+    return response(request, requirements.page(db, user, offset, limit))
+
+
+@router.post('/requirements', status_code=201)
+def requirement_create(body: RequirementDraft, request: Request, user=Depends(current_user),
+                       db=Depends(get_db), idempotency_key: str=Header('')):
+    return response(request, requirements.create(db, user, body, idempotency_key, request.state.request_id))
+
+
+@router.get('/requirements/{requirement_id}')
+def requirement_detail(requirement_id: str, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, requirements.detail(db, user, requirement_id))
+
+
+@router.put('/requirements/{requirement_id}')
+def requirement_edit(requirement_id: str, body: RequirementUpdate, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, requirements.edit(db, user, requirement_id, body, request.state.request_id))
+
+
+@router.post('/requirements/{requirement_id}/activate')
+def requirement_activate(requirement_id: str, body: RequirementConfirm, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, requirements.transition(db, user, requirement_id, body.version, request.state.request_id, True, body.confirmed))
+
+
+@router.post('/requirements/{requirement_id}/disable')
+def requirement_disable(requirement_id: str, body: VersionInput, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, requirements.transition(db, user, requirement_id, body.version, request.state.request_id, False))
 
 
 @router.post('/imports/{batch_id}', status_code=202)

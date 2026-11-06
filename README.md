@@ -155,3 +155,6 @@ docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml 
 另开终端`npm --prefix frontend run dev`。已运行的8000/5173不重复启动。固定镜像/锁定依赖复用，无新增安装要求。HR进入岗位需求，可按部门区分同名需求；JD辅助失败或漏抽时可手填。草稿不能匹配；确认后手动发起，默认外部全范围，可选内部排除目标部门现任。先看满足/待核对/不满足/执行失败分组，再看证据与排序；分数不是录用概率。总工作年限与某技能年限分别填写；无依据不编造。
 
 重跑：完整`.venv/Scripts/python.exe -m pytest -q`，隔离MySQL用`.venv/Scripts/python.exe scripts/test-mysql.py`；真实集成`.venv/Scripts/python.exe scripts/verify-stage-three-live.py`，真实排序/全范围`.venv/Scripts/python.exe scripts/evaluate-matching.py`，技能年限`.venv/Scripts/python.exe scripts/verify-skill-years-live.py`。这些脚本创建合成记录，故障脚本只操作本项目并finally恢复，不要同时运行本项目其他故障脚本。完整真实浏览器在frontend目录运行`npm run test:stage-three-live`（先运行真实集成脚本生成本机报告）。报告/截图在忽略的data目录，不提交。限制和准确验证命令见验证文档。
+
+
+第三阶段年限审查已修复为规则v3；旧规则结果会提示过期，先核对已保存需求条件再新建匹配，旧结果不会被自动覆盖。上下界/否定和总/技能年限分开处理，JD按完整原文归属校验。详细复现、命令和实际结果见docs/stage-three-review.md。

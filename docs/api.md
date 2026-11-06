@@ -76,3 +76,6 @@ S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requireme
 - Conditions新增skill_experience_years，例如{"Python":3}，只能引用必备技能。它与minimum_experience_years（总年限）分开；缺时间不推断。JD辅助白名单同样支持该字段，须明确技能时间引用。
 
 详情、错误规则、可靠恢复和示例语义见stage-three.md；实际验证见stage-three-verification.md。需求状态/编辑冲突/幂等冲突均409；缺字段/优先级矛盾422，CONDITION_CONFLICT会提示统一正文与结构；越权记录404；JD外部模型失败503且保留原文/手工流程。
+
+
+第三阶段年限审查补充：规则v3，GET /matches/{id}及/results新增rules_stale，候选人requirements同样标rules_stale/stale；旧规则任务重试409 RULE_VERSION_CHANGED。旧结果不回写，需核对旧需求后新建。JD年限引用必须在完整原文中核对总/技能归属、边界及引用数值；上界/区间/严格下界不能悄悄压成整型最小值。见stage-three-review.md。

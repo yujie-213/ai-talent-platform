@@ -49,3 +49,6 @@ HTTP routes → requirements/jd_assist → HR确认RequirementVersion → match_
 match_tasks.py负责业务快照、授权、可靠执行和短事务；match_rules.py为可测试的纯规则/排序；schemas/matching.py为启动、权重与关联契约；worker.py只注册队列入口，cli.py统一轮询既有解析与新匹配outbox/恢复。RequirementWorkspace为同表单需求与JD，MatchWorkspace为独立匹配交互；CandidateWorkspace呈现显式关联和所选需求已有分数，原文跳转仍走受控解析接口。
 
 没有新增微服务或检查点数据库；固定流程及MySQL执行状态已满足恢复，无须为本阶段引入LangGraph。索引继续供后续检索使用；全范围匹配从业务权威快照实时Embedding，不用Milvus top-k代替全集，也不依赖异步索引是否就绪。重启/配置及真实验证见stage-three.md和stage-three-verification.md。
+
+
+年限审查后：year_evidence.py集中YearClaim/YearEvidence区间、否定/模糊、总与技能归属及JD引用数值位置；match_rules和jd_assist共享它，不再各自截取裸数字。规则v3通过match_tasks/candidates/MatchWorkspace显示历史失效；无需新增表或依赖。实际回归/部署见stage-three-review.md。

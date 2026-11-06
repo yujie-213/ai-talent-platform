@@ -2,8 +2,15 @@
 
 2026-11-06（北京时间）。负责人李玉杰，助手星星。用户已明确授权完成第三阶段，本轮完成后待验收，不进入第四阶段。
 
+
+## 当前审查修复交接（基线e9350de）
+- services/year_evidence.py为匹配/JD共用的区间、否定、归属及引用位置校验；match_rules为v3；jd_assist不再凭数字出现就确认总年限/技能年限。
+- match_tasks详情和结果新增rules_stale，candidates旧分数同样过期；旧规则任务拒绝在新算法下继续或原地重试，保持历史。MatchWorkspace明确提示旧规则，仅作历史核对；不回写旧需求/资料/结果。
+- 修复前3 failed，完整SQLite140通过、真实隔离MySQL定向88通过、前端构建通过；真实API/Worker/Embedding四样例+真实JD调用、真实Edge旧规则提示通过。API/worker/dispatcher已重载，未新增迁移或依赖/授权变更。
+- 当前规则v3；本页下方v2及第三阶段首次交付验证是历史基线。已采纳的旧JD条件需HR核对后新建匹配，不能声称业务数据已自动纠正。详细实际命令、旧版本行为与限制见stage-three-review.md。
+
 ## Git与工作区
-- 分支codex/stage-three-requirements，基线872664d；最近代码HEAD 9007328（后台/测试ba42461，前端9007328）。未合并main，正常提交/推送，不强推。最后文档提交通过git log核实。
+- 分支codex/stage-three-requirements，基线872664d；最近修复代码HEAD c384b97（审查基线e9350de；首次交付后台ba42461、前端9007328）。未合并main，正常提交/推送，不强推。最后文档提交通过git log核实。
 - 开始时工作区干净，本轮只提交相关代码/合成测试/文档；.env、data、原文件、截图、报告、模型及本机账号不入Git，秘密排除扫描通过。最终远端/工作区状态见最终汇报。
 
 ## 业务链与入口

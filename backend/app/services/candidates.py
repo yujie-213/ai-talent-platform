@@ -1,27 +1,17 @@
 """结构化授权查询，不依赖向量 top-k 计算人数。"""
-from sqlalchemy import select, func, exists, and_, not_
+from sqlalchemy import select, func, and_
 from app.core.security import scope_clause
 from app.models.entities import Talent, Fact, IndexEvent, ResumeRecord, Task, Attempt, TalentRequirement, RecruitmentRequirement, MatchEntry, MatchRun
 from app.services import requirements
 from app.services import match_rules
 from app.services.business import row
-from app.repositories.access import effective_talent_clause
+from app.repositories import candidate_filters
 
 
 def page(db, user, offset: int, limit: int, kind: str = '', skill: str = '', education: str = '', experience: str = '', sort: str = 'name_asc', requirement_id: str = '') -> dict:
-    conditions = [scope_clause(db, user, 'talent.read')]
-    # 导入中的占位档案属于任务视角，不能充当已入档候选人。
-    conditions.append(effective_talent_clause())
-    if requirement_id:
-        requirements.get(db,user,requirement_id)
-        conditions.append(exists(select(TalentRequirement.talent_id).where(TalentRequirement.talent_id==Talent.id,TalentRequirement.requirement_id==requirement_id)))
-    if kind:
-        conditions.append(Talent.kind == kind)
-    for category, value in [('skill', skill), ('education', education), ('experience', experience)]:
-        if value:
-            # autoescape 防止用户输入通配符意外扩大筛选范围。
-            conditions.append(exists(select(Fact.id).where(Fact.talent_id == Talent.id,
-                Fact.category == category, Fact.content.contains(value, autoescape=True))))
+    filters={'kind':kind,'skill':skill,'education':education,'experience':experience,'requirement_id':requirement_id}
+    candidate_filters.authorize(db,user,filters)
+    conditions = [scope_clause(db, user, 'talent.read'),*candidate_filters.conditions(filters)]
     where = and_(*conditions)
     total = db.scalar(select(func.count()).select_from(Talent).where(where))
     order = {'name_asc': Talent.name.asc(), 'name_desc': Talent.name.desc(), 'version_desc': Talent.version.desc()}[sort]

@@ -18,6 +18,8 @@ PLAN_PROMPT='''你是只读人才档案查询计划器。只输出JSON，不生�
 必须使用intent(find/ask/compare/count/semantic_count/clarify)、kind(""/internal/external)、skill、education(""/高中/大专/本科/硕士/博士)、education_op(eq/ge)、years(数值或null)、years_op(ge/gt)、skill_years(技能名到最低年限的字典)、skill_years_op(ge/gt)、semantic、criteria(字符串数组)、clarification、expand(bool)。不能出现其他键。
 years仅表示总工作经验。Python经验3年等技能年限必须放入skill_years，如{"Python":3}，不能借用总工作年限；未要求的技能年限使用空字典。上界/区间等无法表达的条件必须澄清，不能反向改成最低年限。
 结合当前范围及已明确的上一轮条件理解连续追问，返回完整条件。未要求取消的条件必须继承。
+结构化字段只限定筛选工具，不限定档案可回答的内容。毕业院校、专业、任职公司、项目细节等用ask/compare及criteria从facts取证，不能因“毕业院校”不是结构筛选字段就clarify。比如“毕业院校是什么？”返回intent=ask、criteria=["毕业院校"]，不臆测资料缺失；确实缺少资料由逐人评估报告unknown。
+只问档案内容时不要把问题中的学校/专业/技能误当新的筛选条件，也不要将scope.filters复制成新的条件；当前范围已经完成页面条件筛选。
 未修改语义判据时，criteria必须逐字沿用previous_conditions.criteria，不要改写已有判据。
 本科是最高已完成学历等于本科；本科及以上为ge。3年以上为ge3，超过3年为gt3；条件歧义必须clarify，不静默等同。
 只有用户明确要求全库/全部授权范围才能expand=true。空选集、这些人指代不明需clarify。普通自然语言找人用find，问是否具备某经验用ask，多人比较compare，结构化完整人数count。
@@ -164,32 +166,42 @@ def evaluate(state:State):
 
 def answer(state:State):
     jid,version=state['job_id'],state['version']
+    # 外部答案整理在事务外；取得的仅为当前权限下已校验的逐人成果。
+    with Session() as db:
+        user,_,m=service.actor(db,db.get(ChatJob,jid),version)
+        if not (m.plan or {}).get('prepared'):return {'phase':'answered'}
+        data=service.job_detail(db,user,jid)
+    entries=data['entries']
+    counts={s:sum(e['state']==s for e in entries) for s in ['supported','unknown','not_supported','insufficient','excluded','failed','not_retrieved','pending']}
+    if counts['pending']:raise ValueError('INCOMPLETE_EVALUATION')
+    intent=data['plan']['intent']
+    organized={}
+    if intent in ('ask','compare'):
+        from app.ai.chat_answer import organize
+        with model_context('chat.answer',jid):
+            organized=organize(data['question'],entries,intent=='compare',generate_json)
+        text=organized['text']
+    elif intent=='count':
+        text=f"完整授权快照范围 {len(entries)} 人；符合已明确结构条件 {counts['supported']} 人（按人才ID去重），信息不足 {counts['insufficient']} 人，不符合 {counts['excluded']} 人。"
+    elif intent=='semantic_count':
+        text=f"指定范围 {len(entries)} 人已逐人处理；有证据支持 {counts['supported']} 人，信息不足 {counts['unknown']+counts['insufficient']} 人，明确不支持 {counts['not_supported']} 人，结构条件排除 {counts['excluded']} 人，失败 {counts['failed']} 人。失败或未知不等于不具备。"
+    else:
+        text=f"当前找到有证据支持 {counts['supported']} 人；信息不足 {counts['unknown']+counts['insufficient']} 人，失败 {counts['failed']} 人。检索结果不代表全范围总人数。"
+        labels={'supported':'有来源支持','unknown':'资料不足，无法确认','not_supported':'存在明确相反证据',
+                'insufficient':'结构条件资料不足','excluded':'不符合本轮明确的结构条件','failed':'评估失败'}
+        for entry in sorted(entries,key=lambda e:e['name']):
+            if entry['state']=='not_retrieved':continue
+            text+='\n'+entry['name']+'：'+labels.get(entry['state'],entry['state'])+'。'
+            for criterion in (entry['result'] or {}).get('criteria',[]):
+                text+=' '+criterion['criterion']+'：'+labels.get(criterion['state'],criterion['state'])+'。'
+        text+='\n请展开下方逐人证据核对；没有记录不能当作能力为零，历史版本不代表最新事实。'
     with Session.begin() as db:
         job=db.scalar(select(ChatJob).where(ChatJob.id==jid).with_for_update())
         user,_,m=service.actor(db,job,version)
-        if not (m.plan or {}).get('prepared'):return {'phase':'answered'}
-        entries=list(db.scalars(select(ChatEntry).where(ChatEntry.job_id==jid)))
-        counts={s:sum(e.state==s for e in entries) for s in ['supported','unknown','not_supported','insufficient','excluded','failed','not_retrieved','pending']}
-        if counts['pending']:raise ValueError('INCOMPLETE_EVALUATION')
-        for e in entries:
-            for c in (e.result or {}).get('criteria',[]):
-                for ref in c['evidence']:service.check_citation(db,user,e,ref)
-        intent=m.plan['intent']
-        if intent=='count':
-            text=f"完整授权快照范围 {len(entries)} 人；符合已明确结构条件 {counts['supported']} 人（按人才ID去重），信息不足 {counts['insufficient']} 人，不符合 {counts['excluded']} 人。"
-        elif intent=='semantic_count':
-            text=f"指定范围 {len(entries)} 人已逐人处理；有证据支持 {counts['supported']} 人，信息不足 {counts['unknown']+counts['insufficient']} 人，明确不支持 {counts['not_supported']} 人，结构条件排除 {counts['excluded']} 人，失败 {counts['failed']} 人。失败或未知不等于不具备。"
-        else:
-            text=('当前找到' if intent=='find' else '本轮范围内')+f"有证据支持 {counts['supported']} 人；信息不足 {counts['unknown']+counts['insufficient']} 人，失败 {counts['failed']} 人。"+('检索结果不代表全范围总人数。' if intent=='find' else '')
-            labels={'supported':'有来源支持','unknown':'资料不足，无法确认','not_supported':'存在明确相反证据',
-                'insufficient':'结构条件资料不足','excluded':'不符合本轮明确的结构条件','failed':'评估失败'}
-            for entry in sorted(entries,key=lambda e:e.snapshot['name']):
-                if entry.state=='not_retrieved':continue
-                text+='\n'+entry.snapshot['name']+'：'+labels.get(entry.state,entry.state)+'。'
-                for criterion in (entry.result or {}).get('criteria',[]):
-                    text+=' '+criterion['criterion']+'：'+labels.get(criterion['state'],criterion['state'])+'。'
-            text+='\n请展开下方逐人证据核对；没有记录不能当作能力为零，历史版本不代表最新事实。'
-        m.answer={'text':text,'confirmation_required':False,'counts':counts,'generated_from':'validated_per_person_evidence'}
+        # 模型返回后再检查撤权、来源归属及执行/会话版本，迟到内容不得保存。
+        service.job_detail(db,user,jid)
+        m.answer={**organized,'text':text,'confirmation_required':False,'counts':counts,
+                  'generated_from':'validated_per_person_evidence'}
     return {'phase':'answered'}
 
 

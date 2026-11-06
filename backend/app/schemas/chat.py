@@ -10,7 +10,7 @@ class Scope(Input):
 
     @model_validator(mode='after')
     def validate_filter(self):
-        if set(self.filters) - {'kind', 'skill', 'education', 'experience'} or any(len(v)>100 for v in self.filters.values()):
+        if set(self.filters) - {'kind', 'skill', 'education', 'experience', 'requirement_id'} or any(len(v)>100 for v in self.filters.values()):
             raise ValueError('筛选字段无效')
         if self.filters.get('kind', '') not in ('', 'internal', 'external'):
             raise ValueError('身份无效')

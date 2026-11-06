@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
+    "test:chat-review-live": "node scripts/chat-review-live.mjs",
     "test:management-live": "node scripts/management-live.mjs",
     "test:chat-late-response": "node scripts/chat-late-response.mjs",
     "test:chat-live": "node scripts/chat-live.mjs",

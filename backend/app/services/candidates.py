@@ -3,6 +3,7 @@ from sqlalchemy import select, func, exists, and_, not_
 from app.core.security import scope_clause
 from app.models.entities import Talent, Fact, IndexEvent, ResumeRecord, Task, Attempt, TalentRequirement, RecruitmentRequirement, MatchEntry, MatchRun
 from app.services import requirements
+from app.services import match_rules
 from app.services.business import row
 from app.repositories.access import effective_talent_clause
 
@@ -44,7 +45,8 @@ def page(db, user, offset: int, limit: int, kind: str = '', skill: str = '', edu
                 'group':(latest[0].result or {}).get('group') if latest and latest[0].state=='evaluated' else None,
                 'state':latest[0].state if latest else 'unmatched', 'requirement_version':latest[1].requirement_version if latest else None,
                 'created_at':latest[1].created_at if latest else None,
-                'stale':bool(latest and (latest[0].snapshot['version']!=talent.version or latest[1].requirement_version!=req.active_version)),
+                'rules_stale':bool(latest and latest[1].rules.get('version')!=match_rules.RULE_VERSION),
+                'stale':bool(latest and (latest[0].snapshot['version']!=talent.version or latest[1].requirement_version!=req.active_version or latest[1].rules.get('version')!=match_rules.RULE_VERSION)),
                 'requirement_status':req.status})
         items.append({**row(talent), 'quality': record.quality if record else 'manual', 'tags': [row(f) for f in db.scalars(select(Fact).where(Fact.talent_id == talent.id))],
                       'requirements':matches,

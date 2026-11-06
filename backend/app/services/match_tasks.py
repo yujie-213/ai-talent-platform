@@ -19,7 +19,7 @@ from app.services.resume_providers import local_embeddings
 from app.services.resume_reader import ResumeError
 
 MAX_RUNS = 3
-PERMANENT = {'AUTHORIZATION_REVOKED', 'PROFILE_EMPTY', 'EMBEDDING_REBUILD_REQUIRED'}
+PERMANENT = {'AUTHORIZATION_REVOKED', 'PROFILE_EMPTY', 'EMBEDDING_REBUILD_REQUIRED', 'RULE_VERSION_CHANGED'}
 
 
 def fact_snapshot(db, user, talent: Talent) -> list[dict]:
@@ -149,7 +149,8 @@ def detail(db, user, run_id: str) -> dict:
     return {**row(run), 'scope_snapshot': {k:v for k,v in run.scope_snapshot.items() if k != 'selected_ids'},
             'total': len(visible), 'counts': counts, 'attempts': attempts,
             'requirement_status': requirement.status, 'requirement_stale': requirement.active_version != run.requirement_version,
-            'retryable': run.state in ['failed','succeeded'] and run.run_version < MAX_RUNS and any(e.state=='failed' and e.error_code not in PERMANENT for e in visible)}
+            'rules_stale': run.rules.get('version') != match_rules.RULE_VERSION,
+            'retryable': run.rules.get('version') == match_rules.RULE_VERSION and run.state in ['failed','succeeded'] and run.run_version < MAX_RUNS and any(e.state=='failed' and e.error_code not in PERMANENT for e in visible)}
 
 
 def history(db, user, requirement_id: str, offset: int, limit: int) -> dict:
@@ -174,7 +175,7 @@ def results(db, user, run_id: str, offset: int, limit: int, group: str) -> dict:
     # 默认组顺序：满足→待核对→不满足→未完成/失败；各组内按分数降序。
     output.sort(key=lambda e: ({'pass':0,'unknown':1,'fail':2}.get(e['group'],3),
         -((e['result'] or {}).get('score') or -1), e['talent_id']))
-    return {'items': output[offset:offset+limit], 'total': len(output)}
+    return {'items': output[offset:offset+limit], 'total': len(output), 'rules_stale':run.rules.get('version') != match_rules.RULE_VERSION}
 
 
 def retry(db, user, run_id: str, version: int, request_id: str) -> dict:
@@ -184,6 +185,8 @@ def retry(db, user, run_id: str, version: int, request_id: str) -> dict:
         fail(403, 'FORBIDDEN', '仅任务发起人可重试原范围')
     if run.run_version != version:
         fail(409, 'VERSION_CONFLICT', '执行版本已变化')
+    if run.rules.get('version') != match_rules.RULE_VERSION:
+        fail(409,'RULE_VERSION_CHANGED','匹配规则已更新，请发起新匹配；旧快照与结果保留')
     if not detail(db, user, run_id)['retryable']:
         fail(409, 'INVALID_STATE', '没有可恢复失败，或执行次数已达上限；可新建匹配')
     if not db.execute(update(MatchRun).where(MatchRun.id == run_id, MatchRun.run_version == version,
@@ -233,9 +236,11 @@ def execute(run_id: str, version: int) -> None:
     if not claim(run_id, version):
         return
     with renewing(run_id, version):
-        with Session() as db:
+        with Session.begin() as db:
+            run = db.scalar(select(MatchRun).where(MatchRun.id==run_id).with_for_update())
+            if retire_old_rules(db,run,version):
+                return
             ids = list(db.scalars(select(MatchEntry.id).where(MatchEntry.run_id == run_id, MatchEntry.state == 'pending').order_by(MatchEntry.id)))
-            run = db.get(MatchRun,run_id)
             query_text = match_rules.query_text(run.requirement_snapshot) if actor_can_run(db,run) else None
         query_vector,shared_error = None,None
         if ids and query_text:
@@ -248,11 +253,24 @@ def execute(run_id: str, version: int) -> None:
         finish(run_id, version)
 
 
+def retire_old_rules(db,run:MatchRun,version:int) -> bool:
+    if run.run_version!=version or run.state!='running' or run.rules.get('version')==match_rules.RULE_VERSION:
+        return False
+    # 不把新算法计算的结果伪装成旧规则版本，也不回写已完成的历史结果。
+    run.state,run.outcome,run.error_code,run.lease_until='failed','failed','RULE_VERSION_CHANGED',None
+    db.execute(update(MatchEntry).where(MatchEntry.run_id==run.id,MatchEntry.state=='pending').values(state='failed',error_code='RULE_VERSION_CHANGED'))
+    db.execute(update(MatchAttempt).where(MatchAttempt.run_id==run.id,MatchAttempt.run_version==version).values(state='failed',ended_at=int(time.time())))
+    audit(db,db.get(User,run.created_by),'match.rules_changed',run.id,run.id,'failed')
+    return True
+
+
 def process_entry(run_id: str, version: int, entry_id: str,query_vector: list[float] | None=None,shared_error: str | None=None) -> bool:
     result, error = None, None
     with Session() as db:
         run = db.get(MatchRun, run_id)
         if not run or run.state != 'running' or run.run_version != version:
+            return False
+        if run.rules.get('version') != match_rules.RULE_VERSION:
             return False
         entry = db.get(MatchEntry, entry_id)
         if not entry or entry.run_id != run_id or entry.state != 'pending':
@@ -279,6 +297,7 @@ def process_entry(run_id: str, version: int, entry_id: str,query_vector: list[fl
                 with Session() as gate:
                     current_run = gate.get(MatchRun,run_id)
                     if (not current_run or current_run.state != 'running' or current_run.run_version != version
+                        or current_run.rules.get('version') != match_rules.RULE_VERSION
                         or not entry_allowed(gate,actor_can_run(gate,current_run),gate.get(MatchEntry,entry_id),execute=True)):
                         raise ResumeError('AUTHORIZATION_REVOKED')
                 for vector in local_embeddings(docs[offset:offset+16]):
@@ -293,6 +312,8 @@ def process_entry(run_id: str, version: int, entry_id: str,query_vector: list[fl
         run = db.scalar(select(MatchRun).where(MatchRun.id == run_id).with_for_update())
         if not run or run.state != 'running' or run.run_version != version:
             return False
+        if retire_old_rules(db,run,version):
+            return False
         entry = db.get(MatchEntry, entry_id)
         if entry.state != 'pending':
             return False
@@ -306,6 +327,8 @@ def finish(run_id: str, version: int) -> bool:
     with Session.begin() as db:
         run = db.scalar(select(MatchRun).where(MatchRun.id == run_id).with_for_update())
         if not run or run.state != 'running' or run.run_version != version:
+            return False
+        if retire_old_rules(db,run,version):
             return False
         user = actor_can_run(db, run)
         entries = list(db.scalars(select(MatchEntry).where(MatchEntry.run_id == run_id)))

@@ -110,7 +110,7 @@ def test_current_permission_results_and_late_model_revoke(ctx,monkeypatch):
         return [vector(t) for t in texts]
     monkeypatch.setattr(match_tasks,'local_embeddings',revoke)
     match_tasks.execute(run['id'],1)
-    assert results(client,h,run)=={'items':[],'total':0}
+    assert results(client,h,run)=={'items':[],'total':0,'rules_stale':False}
     current=client.get('/api/matches/'+run['id'],headers=h['demo.hr']).json()['data']
     assert current['total']==0 and current['counts']['failed']==0
     with Session() as db:
@@ -168,8 +168,9 @@ def test_rule_evidence_unknown_failure_and_work_overlap():
     assert result['checks'][0]['status']=='pass'
     assert match_rules.skill_status('SQL',[fact('skill','NoSQL')])[0]=='unknown'
     assert match_rules.skill_status('Python',[fact('skill','不会Python')])[0]=='fail'
-    years,explicit,_=match_rules.experience([fact('experience','2020.01-2022.01 A公司'),fact('experience','2021.01-2023.01 B公司')],'2026-11-06')
-    assert years==3 and not explicit
+    observed=match_rules.experience([fact('experience','2020.01-2022.01 A公司'),fact('experience','2021.01-2023.01 B公司')],'2026-11-06')
+    assert observed.interval().lower==3 and observed.interval().upper is None
+    assert observed.status(3)=='pass' and observed.status(4)=='unknown'
     unknown=match_rules.evaluate(requirement,{'facts':[]},'2026-11-06')
     assert unknown['group']=='unknown'
     with pytest.raises(ValueError):
@@ -287,3 +288,41 @@ def test_skill_years_are_not_inferred_from_general_work_or_project_dates():
     assert check('Python开发经验：3年')['status']=='pass'
     assert check('2年Python经验')['status']=='fail'
     assert check('NoPython经验：5年')['status']=='unknown'
+
+
+def test_old_rule_results_are_stale_and_not_silently_retried(ctx,monkeypatch):
+    client,h,_,_,_,req=context(ctx,monkeypatch)
+    run=start(client,h,req)
+    match_tasks.execute(run['id'],1)
+    original=results(client,h,run)['items'][0]['result']
+    with Session.begin() as db:
+        stored=db.get(MatchRun,run['id']);stored.rules={**stored.rules,'version':'evidence-bm25-dense-rrf-v2'}
+    detail=client.get('/api/matches/'+run['id'],headers=h['demo.hr']).json()['data']
+    assert detail['rules_stale'] and not detail['retryable']
+    historic=results(client,h,run)
+    assert historic['rules_stale'] and historic['items'][0]['result']==original
+    denied=client.post('/api/matches/'+run['id']+'/retry',headers=h['demo.hr'],json={'version':1})
+    assert denied.status_code==409 and denied.json()['error']['code']=='RULE_VERSION_CHANGED'
+    client.put('/api/requirements/'+req['id']+'/talents/'+ctx[4],headers=h['demo.hr'],json={'talent_version':1,'linked':True})
+    candidate=client.get('/api/candidates',headers=h['demo.hr'],params={'requirement_id':req['id']}).json()['data']['items'][0]
+    assert candidate['requirements'][0]['stale'] and candidate['requirements'][0]['rules_stale']
+
+
+@pytest.mark.parametrize('running',[False,True])
+def test_old_rule_queued_or_running_task_cannot_use_new_algorithm(ctx,monkeypatch,running):
+    client,h,_,_,_,req=context(ctx,monkeypatch)
+    run=start(client,h,req)
+    if running:assert match_tasks.claim(run['id'],1)
+    with Session.begin() as db:
+        stored=db.get(MatchRun,run['id']);stored.rules={**stored.rules,'version':'evidence-bm25-dense-rrf-v2'}
+        entry_id=db.scalar(select(MatchEntry.id).where(MatchEntry.run_id==run['id']))
+    def forbidden(*_):raise AssertionError('旧规则不应调用Embedding')
+    monkeypatch.setattr(match_tasks,'local_embeddings',forbidden)
+    if running:
+        assert not match_tasks.process_entry(run['id'],1,entry_id)
+        assert not match_tasks.finish(run['id'],1)
+    else:
+        match_tasks.execute(run['id'],1)
+    detail=client.get('/api/matches/'+run['id'],headers=h['demo.hr']).json()['data']
+    assert detail['state']=='failed' and detail['error_code']=='RULE_VERSION_CHANGED'
+    assert detail['counts']['pending']==0 and detail['counts']['failed']==1

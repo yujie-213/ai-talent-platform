@@ -5,7 +5,7 @@ from app.core.security import fail
 from app.models.entities import User
 from app.schemas.requirements import JDAssist, Salary
 from app.services import requirements
-from app.services.match_rules import skill_year_values
+from app.services.year_evidence import supports_minimum
 from app.services.business import audit
 from app.services.resume_providers import generate_json
 from app.services.resume_reader import ResumeError
@@ -90,7 +90,7 @@ def validate(raw: dict, body: JDAssist) -> dict:
                 value=TypeAdapter(dict[str,int]).validate_python(value,strict=True)
                 if not value or len(value)>30 or any(not k.strip() or len(k)>100 or not 0<=v<=60 for k,v in value.items()):
                     raise ValueError()
-                grounded=grounded and all(v in skill_year_values(k,quote) for k,v in value.items())
+                grounded=grounded and all(supports_minimum(source,quote,v,k) for k,v in value.items())
             elif field.endswith('minimum_education'):
                 if value not in ['不限', '高中', '大专', '本科', '硕士', '博士']:
                     raise ValueError()
@@ -99,7 +99,7 @@ def validate(raw: dict, body: JDAssist) -> dict:
                 value = TypeAdapter(int).validate_python(value, strict=True)
                 if not 0 <= value <= 60:
                     raise ValueError()
-                grounded = grounded and bool(re.search(rf'(?<!\d){value}\s*年', quote))
+                grounded = grounded and supports_minimum(source,quote,value)
         except (ValidationError, ValueError, TypeError):
             issues.append(f'{field}格式不合规，已忽略')
             continue

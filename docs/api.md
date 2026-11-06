@@ -59,7 +59,20 @@ Idempotency-Key 最长 128 字符，按账号+动作+key 唯一；摘要覆盖�
 - PUT /api/requirements/{id}：完整草稿及version，只改草稿，部门岗位不可更换，冲突409。
 - POST /api/requirements/{id}/activate：{version,confirmed:true}；验证必填、追加独立快照并切换有效版本，不自动创建匹配。
 - POST /api/requirements/{id}/disable：{version}，只允许当前有效状态，保留历史。
-新增requirement.read/write独立动作，global或department范围；管理员不默认授权。新建及变更同时要求目标需求读写权限，不从人才权限借权。字段、示例、部署和剩余范围见stage-three.md。本批尚无JD辅助与匹配接口。
+新增requirement.read/write独立动作，global或department范围；管理员不默认授权。新建及变更同时要求目标需求读写权限，不从人才权限借权。字段、示例、部署和剩余范围见stage-three.md。JD辅助与匹配接口已在后续条目补齐。
 
 
 S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requirement_id?,version?}，已保存需求必须同时传ID/版本。draft新增可选jd_text（≤20000）。返回{suggestions:[{field,value,quote,source:jd|proposal}],issues,mode,version}；仅建议，不保存。前后两次当前鉴权/版本校验；模型不可用503安全错误，手工流程继续。详细字段白名单和校验限度见stage-three.md。
+
+
+## 第三阶段完整匹配接口（2026-11-06）
+
+- POST /requirements/{id}/matches（202，Idempotency-Key）：{version,include_internal:false,selected_ids:null,skill:"",rules:{evidence_weight:50,preferred_weight:20,semantic_weight:30}}。[]为空范围，默认全授权外部，可选内部排除目标部门；需求当前读写及人才read/task.run交集，任务同事务建立独立匹配outbox。
+- GET /requirements/{id}/matches：历史{items,total}，offset/limit默认20最多100。GET /matches/{id}：状态/业务结果/当前可见进度/attempts/需求状态与过期/规则和需求快照。
+- GET /matches/{id}/results：同样分页，group为pass/unknown/fail/failed/pending或空；逐人才当前talent.read过滤；结果含快照、检查/证据、真实分数、profile_stale。原文引用另查当前file.read及文件/任务归属。执行失败不冒充完整分数。
+- POST /matches/{id}/retry（202）：{version}为执行版本，仅发起人且当前需求读写；保持快照与成功条目，仅重试可恢复失败，最多3次执行。
+- PUT /requirements/{id}/talents/{talent_id}：{talent_version,linked}，读写两侧、冲突409；幂等显式应聘关联，匹配不自动关联。
+- GET /candidates新增requirement_id，仅筛选显式关联者，requirements数组只显示所选需求；默认仍含未关联人才。每项含score/group/state、需求版本、生成时间、过期和当前需求状态。
+- Conditions新增skill_experience_years，例如{"Python":3}，只能引用必备技能。它与minimum_experience_years（总年限）分开；缺时间不推断。JD辅助白名单同样支持该字段，须明确技能时间引用。
+
+详情、错误规则、可靠恢复和示例语义见stage-three.md；实际验证见stage-three-verification.md。需求状态/编辑冲突/幂等冲突均409；缺字段/优先级矛盾422，CONDITION_CONFLICT会提示统一正文与结构；越权记录404；JD外部模型失败503且保留原文/手工流程。

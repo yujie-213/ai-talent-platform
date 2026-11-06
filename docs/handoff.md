@@ -1,15 +1,31 @@
-# 当前交接：第三阶段进行中
+# 当前交接：第三阶段已实现/已验证，待用户验收
 
-2026-11-06（北京时间）。第二阶段已获李玉杰确认验收，第三阶段已明确授权启动。
+2026-11-06（北京时间）。负责人李玉杰，助手星星。用户已明确授权完成第三阶段，本轮完成后待验收，不进入第四阶段。
 
-- 分支 codex/stage-three-requirements，基线872664d（远端第二阶段验收记录）；当前代码HEAD c57c15a（S3-01为8d05941）；最后文档提交以git log为准。同步采用fast-forward，未合并main，未改写他人记录。
-- 本批：schemas/requirements.py定义薪资/结构化条件；services/requirements.py处理权限、幂等、原子版本及状态；entities.py和f084aa25c006新增需求/版本表；api/routes.py提供6个接口；RequirementWorkspace.vue提供人工单表单和历史；application.set_grants增加独立需求动作范围校验。
-- 迁移仅在隔离测试库验证；开发库及现有服务未重载，未自动给账号扩权。部署与授权步骤、详细验证/限制见stage-three.md。前端现有默认入口不变，有requirement.read后出现岗位需求。
-- 验证：完整SQLite50 passed /156.83秒；补充权限用例后定向SQLite5 passed /21.62秒、真实隔离MySQL5 passed /35.41秒；前端类型/生产构建通过。MySQL回滚索引依赖缺陷已修复并重跑；真实页面与JD/匹配未验证。
-- 新增文件均为源代码、合成测试或文档，未提交原文件/.env/本机数据。收尾提交和远端同步结果见本轮最终汇报。
-- 本轮S3-02已实现JD辅助：services/jd_assist.py、schemas/requirements.JDAssist、POST /requirements/assist；generate_json共享模型入口；RequirementWorkspace负责粘贴/安全合并/冲突采纳；tests/test_jd_assist.py、frontend/scripts/jd-assist.mjs和scripts/evaluate-jd.py分别覆盖数据库业务、真实Edge合成API交互与真实生成模型。原文jd_text进入草稿JSON，无新迁移。独立5175测试前端已关闭；开发库及原服务未改动。完整SQLite59通过、定向SQLite/MySQL各13通过，真实完整JD漏description，限制详见stage-three.md。
-- 下一步按stage-three.md推进S3-03~06匹配、证据和实际集成验证；第三阶段保持进行中。不能把首批需求基础当成整个阶段已完成，也不等待新的启动授权或进入第四阶段。
-- 第二阶段暂缓UI/标签优化决定仍有效，人工确认空值与事实保护不得退化。历史任务/文件归属及索引调度修复作为回归基线。
+## Git与工作区
+- 分支codex/stage-three-requirements，基线872664d；最近代码HEAD 9007328（后台/测试ba42461，前端9007328）。未合并main，正常提交/推送，不强推。最后文档提交通过git log核实。
+- 开始时工作区干净，本轮只提交相关代码/合成测试/文档；.env、data、原文件、截图、报告、模型及本机账号不入Git，秘密排除扫描通过。最终远端/工作区状态见最终汇报。
+
+## 业务链与入口
+- schemas/requirements.py与services/requirements.py：草稿、薪资/条件、独立技能年限、HR确认、正文优先/必备矛盾、原子编辑版本与不可变有效版本。
+- services/jd_assist.py与resume_providers.generate_json：受控模型调用，原文依据、建议白名单、无长事务、返回前鉴权/版本；RequirementWorkspace负责粘贴、冲突与人工清空保护。
+- services/match_tasks.py：固定需求/范围/资料/规则快照，独立run/entry/attempt/outbox、前后/逐批权限校验、版本屏障、重试、续租与恢复；tasks/worker.match为Celery入口，cli dispatcher同时处理已有解析和新匹配队列。
+- services/match_rules.py：三态规则、声明/项目技能依据、总日期去重、技能年限不借总年限；真实本地Embedding+BM25+RRF与保存的权重/版本v2。解释直接引用实际规则结果，评分不是录用概率。
+- services/candidates.py：当前权限、显式应聘关系、所选需求已有分数及版本/时间/过期；MatchWorkspace展示进度/分组/快照/来源、显式关联；原文引用再验证当前文件权限及Task/File归属。
+- 新增迁移g195bb36d007，接已共享f084aa25c006；5张匹配/关联表已应用开发库。无新增依赖/服务/检查点库。详细契约stage-three.md/api.md/schema.md。
+
+## 实际验证与运行
+- 完整SQLite75 passed /248.28秒；真实随机独立MySQL完整68 passed /471.51秒，最终第三阶段29 passed /196.50秒；前端类型/生产构建通过；本机与Worker pip check通过。
+- 真实生成模型3个合成JD；真实bge-m3排序3样本；真实API/Worker默认无筛选外部18人（14评估、4PROFILE_EMPTY、0待处理）；真实技能年限证明不足为未知，补充明确依据后新建才满足。报告仅忽略目录，未输出真实资料。
+- verify-stage-three-live.py：真实Redis停机补投、Worker SIGKILL/45秒租约恢复v2、旧/重复消息拒绝、快照与过期均通过，服务已恢复。不要并行操作本项目故障脚本。
+- npm run test:stage-three-live：真实Edge+API+MySQL+生成模型+Worker/Embedding无替身通过，包含员工/管理员拒绝。test:jd-assist另为明确合成API的人工保护UI回归。验证命令、过程失败、替身与限制统一见stage-three-verification.md。
+- API http://127.0.0.1:8000；页面 http://127.0.0.1:5173；Docker MySQL/Redis/worker/dispatcher/indexer保留运行。只重载本项目服务，复用固定0.2.1镜像和当前源码挂载；既有Dify/Milvus/Ollama/Neo4j未升级。
+- 合成账号密码仍在本机data/local-access.txt，勿贴聊天。显式prepare-stage-three-demo.py只为现有合成HR追加需求权限；不自动给其他账号扩权，不重新引导/seed，不删原数据。
+
+## 限制与下一步
+JD完整样本仍漏description（手工补齐后生效，不能声称无漏抽）；复杂语义、中文数字/日期和同义词保守待核对，当前字面规则有局限；少量合成样本不等于总体准确率，50/20/30为初始配置；大规模负载/渗透/长期运行未测。历史快照只在当前权限内读取，不代表无限保留。第二阶段UI/标签语义待优化项仍按原决定暂缓。
+
+当前阶段交付待李玉杰验收；可处理第三阶段反馈，不自动开展第四阶段聊天/测评/管理页。验收步骤见stage-three-verification.md。
 
 ---
 

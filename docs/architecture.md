@@ -36,7 +36,16 @@ repositories/access.current_task_file统一核对Task与File当前归属，原�
 
 
 ## 第三阶段首批入口（2026-11-06）
-需求人工闭环：schemas/requirements.py定义薪资与条件；services/requirements.py负责部门范围与动作鉴权、幂等、原子版本、草稿及不可变快照；models/entities.py新增RecruitmentRequirement/RequirementVersion；api/routes.py承接HTTP；frontend/src/RequirementWorkspace.vue为统一表单与历史；tests/test_requirements.py验证权限、版本、状态、幂等及迁移。JD辅助/匹配仍在后续清单，见stage-three.md。新增f084aa25c006迁移尚未应用开发库，原Worker不变。
+需求人工闭环：schemas/requirements.py定义薪资与条件；services/requirements.py负责部门范围与动作鉴权、幂等、原子版本、草稿及不可变快照；models/entities.py新增RecruitmentRequirement/RequirementVersion；api/routes.py承接HTTP；frontend/src/RequirementWorkspace.vue为统一表单与历史；tests/test_requirements.py验证权限、版本、状态、幂等及迁移。JD辅助与匹配已完成，见stage-three.md；f084aa25c006和g195bb36d007已应用开发库，Worker新增独立匹配入口。
 
 
-S3-02：jd_assist.py编排需求鉴权、无长事务的模型请求、建议证据校验与返回前复查；resume_providers.generate_json集中配置/超时/安全错误，简历抽取委托同入口；RequirementWorkspace处理原文、自动粘贴提取、合并差异、建议采纳与迟到响应。JD没有业务持久任务，受90秒同步超时保护；后续匹配仍需独立可靠任务。
+S3-02：jd_assist.py编排需求鉴权、无长事务的模型请求、建议证据校验与返回前复查；resume_providers.generate_json集中配置/超时/安全错误，简历抽取委托同入口；RequirementWorkspace处理原文、自动粘贴提取、合并差异、建议采纳与迟到响应。JD没有业务持久任务，受90秒同步超时保护；匹配已使用下述独立可靠任务。
+
+
+## 第三阶段完整链路
+
+HTTP routes → requirements/jd_assist → HR确认RequirementVersion → match_tasks.start固定授权范围/资料/规则/需求快照 → MySQL match_outbox → 现有cli dispatcher → 同一Celery Worker的talent.match → match_rules三态检查及本地Embedding/BM25/RRF → 执行版本与当前权限屏障 → MatchEntry结果 → 当前授权下分组/证据/历史。
+
+match_tasks.py负责业务快照、授权、可靠执行和短事务；match_rules.py为可测试的纯规则/排序；schemas/matching.py为启动、权重与关联契约；worker.py只注册队列入口，cli.py统一轮询既有解析与新匹配outbox/恢复。RequirementWorkspace为同表单需求与JD，MatchWorkspace为独立匹配交互；CandidateWorkspace呈现显式关联和所选需求已有分数，原文跳转仍走受控解析接口。
+
+没有新增微服务或检查点数据库；固定流程及MySQL执行状态已满足恢复，无须为本阶段引入LangGraph。索引继续供后续检索使用；全范围匹配从业务权威快照实时Embedding，不用Milvus top-k代替全集，也不依赖异步索引是否就绪。重启/配置及真实验证见stage-three.md和stage-three-verification.md。

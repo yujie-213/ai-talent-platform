@@ -1,5 +1,9 @@
 # AI 数字化人才平台
 
+
+当前交付（2026-11-06）：**第三阶段已实现/已验证，待用户验收**。本机页面 http://127.0.0.1:5173 、API http://127.0.0.1:8000 已运行。岗位需求/JD→HR确认→全授权范围匹配→证据/历史/显式应聘关联可用。验收步骤及真实结果见 [第三阶段验证](docs/stage-three-verification.md)，详细规则见 [第三阶段说明](docs/stage-three.md)。现有环境勿重新bootstrap/seed、勿删除数据库/卷/模型。
+
+
 当前：第一阶段已验收；第二阶段“真实简历解析与筛选”待用户验收。未进入第三阶段。
 第二阶段请直接看本页末尾的“第二阶段启动与页面验收”、[逐项验证](docs/stage-two-verification.md)及[进度](docs/progress.md)。本页第一阶段说明保留为底座操作与历史记录。
 
@@ -126,10 +130,28 @@ npm --prefix frontend run build
 已知限制与实际漏抽请看docs/stage-two-verification.md：小样本不代表总体准确率；复杂版式/手写/低清未测；DOCX页眉页脚等未完整覆盖；筛选为显式原文包含，不把未知当0年或擅自解释为“本科及以上”。
 
 
-## 第三阶段开发进度（2026-11-06）
-第二阶段已验收，第三阶段已授权并启动。首批为岗位需求人工表单、草稿/有效版本/停用、部门授权及历史快照；JD辅助和全范围匹配仍未实现。执行清单、接口、授权与部署步骤见docs/stage-three.md；当前未将新增迁移应用开发库，现有服务继续按第二阶段运行。没有新模型、依赖升级或数据重置。
+## 第三阶段增量交付记录（2026-11-06）
+第二阶段已验收。第三阶段先交付岗位需求基础，随后交付JD辅助，现已完成全范围匹配/历史/证据并部署本机待验收。执行清单、接口、授权及验证见docs/stage-three.md与stage-three-verification.md。没有依赖升级或数据重置。
 
 首批定向验证：`.venv/Scripts/python.exe -m pytest -q tests/test_requirements.py --tb=short -p no:cacheprovider`；真实隔离MySQL：`.venv/Scripts/python.exe scripts/test-mysql.py tests/test_requirements.py`；前端：`npm --prefix frontend run build`。定向测试验证真实API和数据库业务，不调用JD/匹配模型。
 
 
-第三阶段S3-02已接JD辅助：岗位需求同一表单粘贴纯文本，自动提取、冲突核对或AI完善；原文保存、模型失败可手工继续。API/权限/部署前提仍见docs/stage-three.md（当前开发库未部署第三阶段）。`npm --prefix frontend run test:jd-assist`需独立前端5175，使用真实Edge+合成API；`.venv/Scripts/python.exe scripts/evaluate-jd.py`真实调用已配置模型评测两份合成JD，报告保存在忽略的data目录。完整样本目前有任职要求正文漏抽，不宣称整体准确率。
+第三阶段S3-02已接JD辅助：岗位需求同一表单粘贴纯文本，自动提取、冲突核对或AI完善；原文保存、模型失败可手工继续。API/权限/部署前提仍见docs/stage-three.md（现已部署开发库）。`npm --prefix frontend run test:jd-assist`需独立前端5175，使用真实Edge+合成API；`.venv/Scripts/python.exe scripts/evaluate-jd.py`真实调用已配置模型评测三份合成JD，报告保存在忽略的data目录。完整样本目前有任职要求正文漏抽，不宣称整体准确率。
+
+
+## 第三阶段完成后的启动与复核
+
+复用现有.env和服务。已有数据先显式迁移，再重载API与本项目后台；不要重跑初始化或删除卷。合成HR授权准备脚本仅用于现有demo.hr/合成HR角色，不替换旧授权；真实账号通过现有管理接口按部门授权。
+
+```powershell
+$env:PYTHONPATH='backend'
+.venv/Scripts/python.exe -m alembic -c backend/alembic.ini upgrade head
+.venv/Scripts/python.exe scripts/prepare-stage-three-demo.py
+docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml up -d
+docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml restart worker dispatcher
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+另开终端`npm --prefix frontend run dev`。已运行的8000/5173不重复启动。固定镜像/锁定依赖复用，无新增安装要求。HR进入岗位需求，可按部门区分同名需求；JD辅助失败或漏抽时可手填。草稿不能匹配；确认后手动发起，默认外部全范围，可选内部排除目标部门现任。先看满足/待核对/不满足/执行失败分组，再看证据与排序；分数不是录用概率。总工作年限与某技能年限分别填写；无依据不编造。
+
+重跑：完整`.venv/Scripts/python.exe -m pytest -q`，隔离MySQL用`.venv/Scripts/python.exe scripts/test-mysql.py`；真实集成`.venv/Scripts/python.exe scripts/verify-stage-three-live.py`，真实排序/全范围`.venv/Scripts/python.exe scripts/evaluate-matching.py`，技能年限`.venv/Scripts/python.exe scripts/verify-skill-years-live.py`。这些脚本创建合成记录，故障脚本只操作本项目并finally恢复，不要同时运行本项目其他故障脚本。完整真实浏览器在frontend目录运行`npm run test:stage-three-live`（先运行真实集成脚本生成本机报告）。报告/截图在忽略的data目录，不提交。限制和准确验证命令见验证文档。

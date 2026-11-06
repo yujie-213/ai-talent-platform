@@ -45,7 +45,14 @@ talent_field_states同表扩展使用education/experience/project/skill/certific
 
 
 ## 第三阶段首批：招聘需求（2026-11-06）
-增量迁移f084aa25c006新增recruitment_requirements（部门、部门岗位、创建人、draft JSON、status、编辑version、active_version、时间）及requirement_versions（需求FK、number、snapshot JSON、确认人、时间）。需求号+有效版本号唯一。部门岗位在业务上不可更换；部门单列供当前授权过滤，创建时从部门岗位取得。完整草稿采用有严格schema的JSON，后续匹配使用确认快照，不能直接读取未生效草稿。该表不是任意工作流定义。历史版本只追加，所有业务更新由编辑version条件控制。开发库未应用，测试库已验证迁移。
+增量迁移f084aa25c006新增recruitment_requirements（部门、部门岗位、创建人、draft JSON、status、编辑version、active_version、时间）及requirement_versions（需求FK、number、snapshot JSON、确认人、时间）。需求号+有效版本号唯一。部门岗位在业务上不可更换；部门单列供当前授权过滤，创建时从部门岗位取得。完整草稿采用有严格schema的JSON，后续匹配使用确认快照，不能直接读取未生效草稿。该表不是任意工作流定义。历史版本只追加，所有业务更新由编辑version条件控制。首批交付时仅测试库验证；第三阶段收尾已应用开发库。
 
 
 S3-02在draft/snapshot JSON契约增加jd_text（最多20000字符）；旧记录缺省空串，不回写历史快照、不新增DDL。建议临时返回，不自动修改已保存版本，采纳后经现有草稿保存/确认生效。
+
+
+## 第三阶段完整匹配落表（g195bb36d007）
+
+match_runs绑定requirement_id/有效版本、创建人、不可变需求/范围/规则JSON快照，保存技术state、业务outcome、run_version/lease_until/error_code/时间；match_entries以(run_id,talent_id)唯一，保存人才/事实快照、BM25信号、逐人状态、检查/证据/评分结果及失败码；match_attempts以(run_id,run_version)唯一保存尝试/过期/结束；match_outbox同样唯一，保存投递状态/次数。talent_requirements复合主键为(talent_id,requirement_id)，是显式应聘关联，不充当身份/职业/授权。
+
+迁移接f084aa25c006，两条均已应用本机开发库；历史共享迁移未改写。匹配不再创建虚假File或借用解析Task外键。独立JSON条件新增skill_experience_years，无须DDL；旧确认版本/匹配快照保持原样，缺省为不限制。规则v2与权重/模型配置随每个任务保存，旧v1记录不回写。快照事实可带经授权的文件/任务/定位/引用，读取再次检查当前文件归属及读权，不能把快照当权限旁路。

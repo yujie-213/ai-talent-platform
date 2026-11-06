@@ -9,7 +9,8 @@ from app.services import resume_tasks
 from app.services import candidates
 from app.services import resume_index
 from app.services import requirements
-from app.schemas.requirements import RequirementDraft, RequirementUpdate, RequirementConfirm
+from app.services import jd_assist
+from app.schemas.requirements import RequirementDraft, RequirementUpdate, RequirementConfirm, JDAssist
 router = APIRouter(prefix='/api')
 def response(request, data):
     return {'data': data, 'request_id': request.state.request_id}
@@ -19,6 +20,11 @@ def response(request, data):
 def requirement_page(request: Request, user=Depends(current_user), db=Depends(get_db),
                      offset: int=Query(0, ge=0), limit: int=Query(20, ge=1, le=100)):
     return response(request, requirements.page(db, user, offset, limit))
+
+
+@router.post('/requirements/assist')
+def requirement_assist(body: JDAssist, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    return response(request, jd_assist.assist(db, user, body, request.state.request_id))
 
 
 @router.post('/requirements', status_code=201)

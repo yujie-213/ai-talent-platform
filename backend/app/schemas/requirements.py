@@ -48,6 +48,7 @@ class RequirementDraft(Input):
     description: str = Field('', max_length=12000)
     benefits: str = Field('', max_length=4000)
     conditions: Conditions | None = None
+    jd_text: str = Field('', max_length=20000)
 
 
 class RequirementUpdate(RequirementDraft):
@@ -57,3 +58,18 @@ class RequirementUpdate(RequirementDraft):
 class RequirementConfirm(Input):
     version: int = Field(ge=1)
     confirmed: bool
+
+
+class JDAssist(Input):
+    mode: Literal['extract', 'improve'] = 'extract'
+    draft: RequirementDraft
+    requirement_id: str | None = None
+    version: int | None = Field(None, ge=1)
+
+    @model_validator(mode='after')
+    def check_request(self):
+        if bool(self.requirement_id) != (self.version is not None):
+            raise ValueError('已保存需求必须同时提供ID与编辑版本')
+        if self.mode == 'extract' and not self.draft.jd_text.strip():
+            raise ValueError('请先粘贴JD原文')
+        return self

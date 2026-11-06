@@ -72,3 +72,5 @@ chat_checkpoints为原生LangGraph同步检查点适配表，以job_id/run_versi
 ai_calls只保存operation/target_id/model/state/elapsed_ms/error_code/created_at，不保存提示词、聊天/简历正文、URL或密钥。生成模型、Embedding与OCR共享元数据记录；聊天/简历/JD按可用任务或追踪编号关联，部分独立索引调用可无目标编号。roles新增enabled_menus JSON：历史NULL表示按当前功能授权派生可见菜单；显式数组用于显示配置，仍与功能授权取交集，不能扩大后端权限。菜单与授权修改共用角色version检测冲突。
 
 四条第四阶段增量迁移均已应用开发库；j/k接已共享h/i，未修改历史数据归属、旧需求/匹配结果或账户。
+
+第四阶段审查增量无DDL：conversation/message.scope.filters可保存requirement_id，旧缺省不推断补值；message.answer JSON增加编号citations及answer_method，引用与当前逐人成果绑定。旧消息保持历史格式，界面兼容字段缺省。详情stage-four-review.md。

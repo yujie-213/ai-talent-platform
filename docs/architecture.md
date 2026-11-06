@@ -61,6 +61,8 @@ match_tasks.py负责业务快照、授权、可靠执行和短事务；match_rul
 
 
 ## 第四阶段完整业务链
+
+审查增量：repositories/candidate_filters.py统一列表/聊天的五项筛选，包含requirement_id及原需求访问鉴权；CandidateWorkspace仅使用最近成功筛选上下文。ai/chat_answer.py接收原问题及已核验逐人证据，模型返回受约束原文片段参数，代码组织直接答案/共同记录/差异和编号引用。archive_graph在事务外调用，返回保存前重新检查权限和执行版本；失败明确回退原文。详见stage-four-review.md。
 ChatWorkspace（档案/勾选/筛选上下文与同入口追问）→chat_routes（HTTP/SSE）→archive_chat（范围/版本/幂等/持久成果及引用）→repositories/chat_access固定授权范围查询→chat_jobs（outbox/attempt/租约/执行版本）→既有Celery talent.chat→archive_graph（意图、受控准备、检索/证据评估、回答）→MySQLChatSaver原生LangGraph检查点。模型仅生成Plan或逐人证据参数，不接触SQL执行器/写工具。
 
 chat_queries复用match_rules/year_evidence的学历、技能与年限纯规则并校验逐人引用；普通结构人数走完整MySQL人才ID范围。语义检索用实时授权事实快照、本地bge-m3与BM25，最多10人证据核验，仅报告当前找到；完整语义人数确认判据后逐人核验全部明确范围。MySQL是权威源，不等待Milvus异步索引，也不以向量召回数量代替总人数；既有Milvus索引保持运行与更新。

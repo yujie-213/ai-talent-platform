@@ -99,13 +99,15 @@ S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requireme
 ## 第四阶段统一聊天、日志及完整管理接口
 所有路径前缀/api。chat.use使用人才数据范围，并与talent.read同时满足；系统管理员不自动获得。以下接口均检查当前账号及有效权限，撤权/禁用对旧JWT、会话、引用及检查点生效。
 
-- GET/POST /chat/conversations：GET分页{items,total}；POST带Idempotency-Key及{kind:selected|filtered|authorized,ids?,filters?}。filters只接受kind/skill/education/experience，复用当前页面原文筛选语义。后端固定实际人才ID；selected空数组为空，不能扩大。
+- GET/POST /chat/conversations：GET分页{items,total}；POST带Idempotency-Key及{kind:selected|filtered|authorized,ids?,filters?}。filters只接受kind/skill/education/experience/requirement_id，列表和聊天共用候选人筛选规则；requirement_id限制显式应聘关系，创建及历史/执行读取均须当前需求读权。后端固定实际人才ID；selected空数组为空，不能扩大。
 - GET /chat/conversations/{id}：本人且当前仍有全部会话范围权限；历史各轮引用再次检查来源权限/归属，不直接返缓存敏感回答。
 - POST /chat/conversations/{id}/messages（202）：幂等键及{version,question,confirm:false}；同会话活动任务互斥，返回持久job。明确待确认计划使用confirm=true；这不是普通技能逐条确认。追问继承结构条件与已明确语义判据；取消/松开条件和扩大范围需确认。
 - GET /chat/jobs/{id}：技术状态、run_version、范围、计划、回答、逐人结果/版本/过期、覆盖进度及attempts。检索未列入结果的人不计作已完成语义评估；完整语义人数逐人处理，不用top-k数量当总数。
 - GET /chat/jobs/{id}/events?offset=0：带Bearer的SSE。progress输出真实覆盖进度，entry输出已验证且当前授权的逐人结果，chunk输出已验证汇总文本，done/reconnect/revoked控制连接。offset是已接收字符位置；重连只读同一任务，不创建新消息或任务。不是未经校验的模型token透传。每个输出块重新鉴权。
 - POST /chat/jobs/{id}/retry（202）：{version}，最多3个执行版本，只重试可恢复失败，成功条目不重做；撤权及恢复耗尽不可直接重试。
 - GET /chat/jobs/{job}/entries/{entry}/citations/{fact}：人才/事实/来源/位置/版本，必须属于该条目实际证据；人工事实返回人工记录，不伪造文件。文件原文仍通过既有受控任务/文件接口。
+
+ask/compare的answer除text/counts外返回citations（number/entry_id/talent_id/name/fact_id/quote/source_type/source_version）及answer_method。validated_extractive_answer从本问题的已核验引用提取具体答案；整理失败为evidence_excerpt_fallback，明确显示原证据。编号引用沿用原citation接口；新字段对旧消息缺省，不重写旧回答。对比只据实测/记录，不由简历推算能力。
 
 Plan仅允许intent、kind、skill、education(eq/ge)、years(ge/gt)、skill_years与skill_years_op、semantic、criteria、clarification、expand；所有数值/枚举/长度受限，任意SQL、函数名、写操作参数均拒绝。years是总工作经验，skill_years使用独立技能时间证据；未知不计符合，不借总年限。最高已完成学历精确等值与至少区分，“超过”严格大于。上界/区间、无法表达的复杂条件保守澄清，不擅自反转。模型JSON偶发不合schema只允许一次受控修复，仍完整白名单及权限校验。
 

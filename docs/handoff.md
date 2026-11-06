@@ -1,5 +1,7 @@
 # 当前交接：第四阶段已部署，待用户验收
 
+最新审查修复从bdc0efa接手，仍在同一分支：repositories/candidate_filters.py为列表/聊天共用条件，current_scope重查requirement_id访问权；CandidateWorkspace保存最近成功筛选，完整传需求条件；ai/chat_answer.py受约束抽取已核验片段，archive_graph在事务外整理且返回前再鉴权，ChatWorkspace显示编号引用。新增tests/test_chat_review.py及真实API/Edge审查脚本。SQLite/MySQL各40通过，真实两人合成例和页面通过；无新增迁移/依赖/服务版本，API/项目后台已重载。旧缺失条件不回填，旧模板历史不覆盖；复核入口和限制见stage-four-review.md。最近修复代码HEAD为3c946fe，最后文档提交由git log核对，仍待负责人验收。
+
 2026-11-06：李玉杰已明确验收第三阶段并授权完整第四阶段及正常提交推送，不再等待计划审批。当前分支codex/stage-four-chat-assessment，由7c322a3建立，含c384b97修复和规则v3；远端第三阶段同HEAD，无后续差异，开始工作区干净。执行清单stage-four.md，先基线验证，再测评闭环、管理与真实工作台、LangGraph统一聊天和语义任务，全部验证部署后才标待用户验收。以下为历史交接，授权和阶段状态以本段为准。
 
 业务入口：services/assessments.py、api/assessment_routes.py、AssessmentWorkspace/AssessmentRadar为完整测评链；api/chat_routes.py、services/archive_chat/chat_jobs/chat_queries.py、repositories/chat_access.py、ai/archive_graph/chat_checkpoint.py与ChatWorkspace为统一聊天及可靠语义任务；management.py/management_routes.py、App/RoleWorkspace/LogWorkspace为账号绑定、菜单、日志及管理页面；workbench.py/Workbench为真实统计。路由/Service/Repository/AI职责保持分离，没有新增微服务或数据库服务。
@@ -14,7 +16,7 @@
 
 Git：当前分支codex/stage-four-chat-assessment，基线7c322a3（含c384b97），先前子项821aeef/cd81a74保留；本轮后端/前端代码提交见下方收尾记录，最后文档HEAD通过git log核对，避免自引用。正常推送同名远端分支，不强推、不合并main，工作区及远端最终检查在交付收尾执行。
 
-收尾代码提交：后端/任务/迁移/验证脚本8caf130，前端/管理页面/测试驱动8609aa2，均已正常推送。当前最近代码HEAD为8609aa2；最终文档提交用git log查看。远端origin为既有yujie-213/ai-talent-platform，仅推送本任务分支，main未合并。提交前已检查忽略目录及本机实际秘密值，未命中待提交内容；最终工作区与远端通过git status和ls-remote核对。
+首次交付代码提交：后端/任务/迁移/验证脚本8caf130，前端/管理页面/测试驱动8609aa2，均已正常推送。首次交付代码HEAD为8609aa2；最新审查修复见页首，最终文档提交用git log查看。远端origin为既有yujie-213/ai-talent-platform，仅推送本任务分支，main未合并。提交前已检查忽略目录及本机实际秘密值，未命中待提交内容；最终工作区与远端通过git status和ls-remote核对。
 
 ---
 

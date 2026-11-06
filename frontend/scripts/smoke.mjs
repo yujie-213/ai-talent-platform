@@ -47,7 +47,7 @@ try {
       await page.screenshot({path:'../data/screenshots/task-detail.png',fullPage:true})
     }
     if (username === 'demo.employee') {
-      if (await page.locator('.el-table__body tbody tr').count() !== 1) throw new Error('员工页面范围不正确')
+      await expect(page.locator('.el-table__body tbody tr')).toHaveCount(1)
       if (await page.getByRole('button', {name:'新建人才',exact:true}).count()) throw new Error('员工出现未授权入口')
     }
     if (username === 'admin') {
@@ -56,7 +56,7 @@ try {
       await page.getByRole('button', {name:'基础资料',exact:true}).click()
       await page.getByRole('heading', {name:'基础资料',exact:true}).waitFor()
       await page.getByRole('button', {name:'操作审计',exact:true}).click()
-      await page.getByRole('heading', {name:'操作审计',exact:true}).waitFor()
+      await page.getByRole('heading', {name:'操作审计与 AI 调用记录',exact:true}).waitFor()
     }
     await context.close()
     console.log(username + ': browser smoke passed')

@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import type { Api } from './api'
 const props=defineProps<{api:Api}>()
 const data=ref<Record<string,Record<string,number|string>>|null>(null)
-const groups:Record<string,string>={people:'已入档人才',parse_tasks:'解析及机制任务',match_entries:'本人发起的匹配明细',assessments:'测评任务'}
+const groups:Record<string,string>={people:'已入档人才',parse_tasks:'解析及机制任务',match_entries:'本人发起的匹配明细',assessments:'测评任务',chat_jobs:'本人聊天与语义任务'}
 const labels:Record<string,string>={internal:'内部员工',external:'外部候选人',queued:'待处理',running:'处理中',pending:'待参与 / 待处理',answering:'作答中',submitted:'已提交待评分',completed:'已完成',succeeded:'成功',failed:'失败',evaluated:'已评估'}
 async function load(){try{data.value=await props.api('/workbench')}catch(e){ElMessage.error((e as Error).message)}}
 onMounted(load)

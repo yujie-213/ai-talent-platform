@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
+    "test:management-live": "node scripts/management-live.mjs",
+    "test:chat-late-response": "node scripts/chat-late-response.mjs",
+    "test:chat-live": "node scripts/chat-live.mjs",
     "test:assessment-live": "node scripts/assessment-live.mjs",
     "test:browser": "node scripts/smoke.mjs",
     "test:task-pagination": "node scripts/task-pagination.mjs",
@@ -19,7 +22,7 @@
     "vue": "3.5.13"
   },
   "devDependencies": {
-    "@playwright/test": "1.49.1",
+    "@playwright/test": "1.65.0",
     "@vitejs/plugin-vue": "5.2.1",
     "typescript": "5.7.2",
     "vite": "6.0.5",

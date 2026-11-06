@@ -1,3 +1,7 @@
+# 原型对齐补充（2026-11-06）
+
+本轮用户参考R2覆盖上一轮蓝色视觉。App人才详情从drawer改为居中el-dialog，左档案/右embedded ChatWorkspace独立滚动，来源弹窗append-to-body；CandidateWorkspace新增筛选/导入页签。Workbench使用同一真实API呈现四格业务概览及原型双栏布局。接口、授权和任务机制不变；设计差异/验证见ui-prototype-alignment.md。
+
 # UI 重构导航补充（2026-11-06）
 
 App.vue按日常工作/招聘成长/系统管理分组当前菜单和动作权限交集，桌面人才详情采用ProfileFacts.vue＋embedded ChatWorkspace双栏，收起AI保留会话；列表多人/筛选问答使用独立drawer。CandidateWorkspace保持真实分页与成功筛选快照，CandidateCard.vue/candidate.ts负责展示与多选事件；KeepAlive保留列表。AppIcon统一SVG，style.css统一tokens及Element Plus映射/中文系统字体/响应式/焦点。未改后端API及权限，不新增岗位聊天服务；功能入口和验证见ui-redesign.md。

@@ -42,3 +42,7 @@ index_events：id、talent_id、version唯一，state/error_code；档案保存�
 ### e973ff14b005 审查修复增量
 index_events新增attempt_count、failure_count、last_attempt_at、next_attempt_at及(state,next_attempt_at,last_attempt_at)索引；历史行默认0，新应用事件按创建时刻到期。attempt_count作领取版本，显式重建递增使旧调用失效；失败次数独立用于30秒起、最多1小时的指数退避。
 talent_field_states同表扩展使用education/experience/project/skill/certificate类别键（无需新表），保留空集合确认；迁移由已有人工标量确认记录回填类别，确认来源版本取最近人工版本。降级保留确认元数据，重新升级不重复插入。不删除或重置既有业务明细。
+
+
+## 第三阶段首批：招聘需求（2026-11-06）
+增量迁移f084aa25c006新增recruitment_requirements（部门、部门岗位、创建人、draft JSON、status、编辑version、active_version、时间）及requirement_versions（需求FK、number、snapshot JSON、确认人、时间）。需求号+有效版本号唯一。部门岗位在业务上不可更换；部门单列供当前授权过滤，创建时从部门岗位取得。完整草稿采用有严格schema的JSON，后续匹配使用确认快照，不能直接读取未生效草稿。该表不是任意工作流定义。历史版本只追加，所有业务更新由编辑version条件控制。开发库未应用，测试库已验证迁移。

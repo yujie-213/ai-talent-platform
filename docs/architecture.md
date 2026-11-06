@@ -33,3 +33,7 @@ resume_reader.py 按页/段落读取；resume_providers.py 统一模型/Embeddin
 
 ## 第二阶段审查补充
 repositories/access.current_task_file统一核对Task与File当前归属，原文读取/执行/提交/重试/核对及索引引用均不能沿用已失效文件关联。business.save_talent保存独立类别确认（含空集合），resume_tasks.apply_extraction据此只给更新建议。resume_index以到期时间公平领取，持久化退避和领取版本，不在Embedding/Milvus期间持锁。详细复现和本轮验证见stage-two-review.md。
+
+
+## 第三阶段首批入口（2026-11-06）
+需求人工闭环：schemas/requirements.py定义薪资与条件；services/requirements.py负责部门范围与动作鉴权、幂等、原子版本、草稿及不可变快照；models/entities.py新增RecruitmentRequirement/RequirementVersion；api/routes.py承接HTTP；frontend/src/RequirementWorkspace.vue为统一表单与历史；tests/test_requirements.py验证权限、版本、状态、幂等及迁移。JD辅助/匹配仍在后续清单，见stage-three.md。新增f084aa25c006迁移尚未应用开发库，原Worker不变。

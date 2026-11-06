@@ -50,3 +50,13 @@ Idempotency-Key 最长 128 字符，按账号+动作+key 唯一；摘要覆盖�
 
 ## 第二阶段审查修复（646a562后）
 原文接口先验证当前档案范围和Task/File归属一致，再加载JSON；关联后不一致的旧任务返回统一NOT_FOUND/404，不允许继续执行、重试或核对。批次统计/历史过滤同一当前来源边界。field_states现在也返回5个事实类别确认记录，空集合保留；本轮无请求体结构变更。索引重建接口响应不变，重建会重排到期时间并使旧领取失效。
+
+
+## 第三阶段首批：岗位需求（2026-11-06）
+- GET /api/requirements：offset/limit，返回{items,total}，按requirement.read当前范围过滤。
+- POST /api/requirements：完整或不完整草稿；必须选department_position_id；Idempotency-Key必需，201。
+- GET /api/requirements/{id}：当前草稿、状态、编辑/有效版本及完整versions快照。
+- PUT /api/requirements/{id}：完整草稿及version，只改草稿，部门岗位不可更换，冲突409。
+- POST /api/requirements/{id}/activate：{version,confirmed:true}；验证必填、追加独立快照并切换有效版本，不自动创建匹配。
+- POST /api/requirements/{id}/disable：{version}，只允许当前有效状态，保留历史。
+新增requirement.read/write独立动作，global或department范围；管理员不默认授权。新建及变更同时要求目标需求读写权限，不从人才权限借权。字段、示例、部署和剩余范围见stage-three.md。本批尚无JD辅助与匹配接口。

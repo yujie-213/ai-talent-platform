@@ -124,3 +124,9 @@ npm --prefix frontend run build
 合成样本评测可选安装：项目.venv安装backend/requirements-evaluation.txt；单独建立.tools/ocr-venv并安装backend/requirements-ocr.lock.txt，再运行scripts/evaluate-ocr.py和scripts/evaluate-resumes.py。样本生成目录data/stage-two-evaluation均被忽略。真实简历不得用作公开测试样本。
 
 已知限制与实际漏抽请看docs/stage-two-verification.md：小样本不代表总体准确率；复杂版式/手写/低清未测；DOCX页眉页脚等未完整覆盖；筛选为显式原文包含，不把未知当0年或擅自解释为“本科及以上”。
+
+
+## 第三阶段开发进度（2026-11-06）
+第二阶段已验收，第三阶段已授权并启动。首批为岗位需求人工表单、草稿/有效版本/停用、部门授权及历史快照；JD辅助和全范围匹配仍未实现。执行清单、接口、授权与部署步骤见docs/stage-three.md；当前未将新增迁移应用开发库，现有服务继续按第二阶段运行。没有新模型、依赖升级或数据重置。
+
+首批定向验证：`.venv/Scripts/python.exe -m pytest -q tests/test_requirements.py --tb=short -p no:cacheprovider`；真实隔离MySQL：`.venv/Scripts/python.exe scripts/test-mysql.py tests/test_requirements.py`；前端：`npm --prefix frontend run build`。定向测试验证真实API和数据库业务，不调用JD/匹配模型。

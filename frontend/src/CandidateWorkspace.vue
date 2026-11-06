@@ -2,17 +2,21 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Api } from './api'
-import { categoryName, qualityName, indexName } from './labels'
+import CandidateCard from './CandidateCard.vue'
+import type {Candidate} from './candidate'
 const props = defineProps<{api: Api; canImport: boolean;canRequirements?:boolean;canChat?:boolean;departments?:{id:string;name?:string}[]}>()
 const emit = defineEmits<{open: [id: string]; task: [id: string];chat:[scope:{kind:'selected'|'filtered';ids?:string[];filters?:Record<string,string>}]}>()
-interface Candidate {id: string; name: string; kind: string; index_state: string; tags: {category: string; content: string; confirmed: boolean}[];requirements?:{requirement_id:string;title:string;score:number|null;state:string;group:string|null;stale:boolean;requirement_version:number|null;created_at:number|null;requirement_status:string}[]}
+
 const checkedIds=ref<string[]>([])
+const loadError=ref('')
+function toggleChecked(id:string){checkedIds.value=checkedIds.value.includes(id)?checkedIds.value.filter(x=>x!==id):[...checkedIds.value,id]}
+function appliedText(){return Object.entries(appliedFilters.value||{}).filter(([k,v])=>v&&k!=='sort').map(([k,v])=>`${({kind:'身份',skill:'技能',education:'教育',experience:'经历',requirement_id:'应聘需求'} as Record<string,string>)[k]}：${k==='kind'?(v==='external'?'外部候选人':'内部员工'):k==='requirement_id'?(requirements.value.find(r=>r.id===v)?.draft.title||v):v}`).join(' · ')}
 const filters = ref({kind: 'external', skill: '', education: '', experience: '', sort: 'name_asc',requirement_id:''})
 const appliedFilters=ref<typeof filters.value|null>(null)
 function chatFiltered(){if(!appliedFilters.value)return;const {sort,...scopeFilters}=appliedFilters.value;emit('chat',{kind:'filtered',filters:scopeFilters})}
 const requirements=ref<{id:string;department_id?:string;draft:{title:string}}[]>([])
 function requirementLabel(r:typeof requirements.value[number]){const department=props.departments?.find(d=>d.id===r.department_id)?.name;return (department?department+' · ':'')+(r.draft.title||'未命名需求')}
-const groups:Record<string,string>={pass:'满足',unknown:'待核对',fail:'不满足',pending:'待处理',failed:'失败',unmatched:'未匹配',evaluated:'已评估'}
+
 const items = ref<Candidate[]>([]), total = ref(0), page = ref(1), busy = ref(false)
 const loading=ref(false)
 let listRequest=0
@@ -35,7 +39,7 @@ async function loadBatch() {
 }
 async function load() {
   const request=++listRequest
-  loading.value=true
+  loading.value=true;loadError.value=''
   checkedIds.value=[]
   try {
     const requestedFilters={...filters.value}
@@ -45,7 +49,7 @@ async function load() {
     items.value = data.items; total.value = data.total;appliedFilters.value=requestedFilters
     const history=await props.api<string[]>('/imports')
     if(request===listRequest)batches.value=history
-  } catch (error) { if(request===listRequest)ElMessage.error((error as Error).message) }
+  } catch (error) { if(request===listRequest){loadError.value=(error as Error).message;ElMessage.error(loadError.value)} }
   finally {if(request===listRequest)loading.value=false}
 }
 async function upload() {
@@ -68,12 +72,28 @@ async function upload() {
 onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;const all:typeof requirements.value=[];while(true){const data=await props.api<{items:typeof requirements.value;total:number}>(`/requirements?offset=${offset}&limit=100`);all.push(...data.items);if(!data.items.length||all.length>=data.total)break;offset+=data.items.length}requirements.value=all}catch(error){ElMessage.error((error as Error).message)}}})
 </script>
 <template>
-  <h1>候选人筛选</h1><p class="muted">默认外部候选人；筛选与人数均来自当前授权范围。技能表示简历声明，不代表测评通过。</p>
-  <el-card><el-form inline><el-select v-model="filters.kind" style="width:150px"><el-option label="外部候选人" value="external"/><el-option label="内部员工" value="internal"/><el-option label="全部授权人才" value=""/></el-select><el-input v-model="filters.skill" placeholder="技能包含" style="width:150px"/><el-input v-model="filters.education" placeholder="教育原文包含，如本科" style="width:190px"/><el-input v-model="filters.experience" placeholder="经历原文包含" style="width:160px"/><el-select v-model="filters.sort" style="width:150px"><el-option label="姓名升序" value="name_asc"/><el-option label="姓名降序" value="name_desc"/><el-option label="档案版本降序" value="version_desc"/></el-select><el-button @click="page=1; load()">筛选</el-button></el-form>
-  <el-select v-if="canRequirements" v-model="filters.requirement_id" clearable placeholder="应聘需求（仅显式关联者）" style="width:330px" @change="page=1;load()"><el-option v-for="r in requirements" :key="r.id" :label="requirementLabel(r)" :value="r.id"/></el-select><p>共 {{ total }} 人</p><p v-if="canChat" class="muted">列表与聊天使用最近一次成功筛选的条件；编辑条件后请点击筛选。</p><template v-if="canChat"><el-button :disabled="loading" @click="emit('chat',{kind:'selected',ids:checkedIds})">与勾选人才聊天（{{checkedIds.length}}）</el-button><el-button :disabled="loading||!appliedFilters" @click="chatFiltered">按当前筛选范围聊天</el-button></template><el-table v-loading="loading" :data="items" @selection-change="(rows:Candidate[])=>checkedIds=rows.map(r=>r.id)" @row-click="(row: Candidate) => emit('open', row.id)"><el-table-column v-if="canChat" type="selection" width="48"/><el-table-column prop="name" label="姓名"/><el-table-column label="分类事实"><template #default="s"><span class="fact-tag" v-for="tag in s.row.tags" :key="tag.id">{{categoryName[tag.category] || tag.category}} · {{tag.content}} · {{tag.confirmed?'已确认':'未确认'}}</span></template></el-table-column><el-table-column label="资料状态"><template #default="s">{{qualityName[s.row.quality] || s.row.quality}}</template></el-table-column><el-table-column label="检索索引状态"><template #default="s">{{indexName[s.row.index_state] || s.row.index_state}}</template></el-table-column><el-table-column label="岗位关联与已有匹配"><template #default="s"><p v-if="!s.row.requirements?.length">未关联应聘需求；仍可参加全范围匹配</p><p v-for="r in s.row.requirements||[]" :key="r.requirement_id">{{r.title}} · {{groups[r.group||r.state]||r.state}} · {{r.score??'—'}}<small v-if="r.requirement_version"> / 需求v{{r.requirement_version}} / {{new Date(r.created_at*1000).toLocaleString()}}</small><el-tag v-if="r.stale||r.requirement_status!=='active'" type="warning">旧结果 / 需求、档案或规则已变更</el-tag></p></template></el-table-column></el-table>
-  <el-pagination v-model:current-page="page" :total="total" :page-size="20" layout="prev,pager,next" @current-change="load"/></el-card>
+  <div class="title-row"><div><p class="eyebrow">TALENT LIBRARY / 人才库</p><h1>候选人筛选</h1><p class="muted">从资料中发现合适的人才，再用证据深入了解。</p></div><a v-if="canImport" class="import-link" href="#resume-import">导入简历 ↗</a></div>
+  <el-card class="filter-card"><el-form label-position="top" class="candidate-filters" @submit.prevent="page=1;load()">
+    <el-form-item label="人才身份"><el-select v-model="filters.kind"><el-option label="外部候选人" value="external"/><el-option label="内部员工" value="internal"/><el-option label="全部授权人才" value=""/></el-select></el-form-item>
+    <el-form-item label="技能"><el-input v-model="filters.skill" placeholder="技能包含" clearable/></el-form-item>
+    <el-form-item label="教育"><el-input v-model="filters.education" placeholder="教育原文包含，如本科" clearable/></el-form-item>
+    <el-form-item label="经历"><el-input v-model="filters.experience" placeholder="经历原文包含" clearable/></el-form-item>
+    <el-form-item label="排序"><el-select v-model="filters.sort"><el-option label="姓名升序" value="name_asc"/><el-option label="姓名降序" value="name_desc"/><el-option label="档案版本降序" value="version_desc"/></el-select></el-form-item>
+    <el-form-item label="应用条件"><el-button type="primary" native-type="submit" :loading="loading">筛选</el-button></el-form-item>
+  </el-form><el-select v-if="canRequirements" v-model="filters.requirement_id" clearable placeholder="应聘需求（仅显式关联者）" class="requirement-filter" @change="page=1;load()"><el-option v-for="r in requirements" :key="r.id" :label="requirementLabel(r)" :value="r.id"/></el-select></el-card>
+  <div class="result-toolbar"><div><strong>共 {{ total }} 人</strong><p class="muted" data-testid="applied-filters">{{appliedText()||'当前授权范围'}} · 每页20人</p></div><div v-if="canChat" class="batch-actions"><el-button :disabled="loading||!checkedIds.length" @click="emit('chat',{kind:'selected',ids:[...checkedIds]})">与勾选人才聊天（{{checkedIds.length}}）</el-button><el-button :disabled="loading||!appliedFilters" @click="chatFiltered">按当前筛选范围聊天</el-button></div></div>
+  <p v-if="canChat" class="muted scope-note">聊天沿用上方已应用条件，包含全部 {{total}} 人；编辑条件后请点击筛选。勾选限当前页。</p>
+  <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button @click="load">重新加载</el-button></el-alert>
+  <div v-loading="loading" class="candidate-grid" aria-label="候选人列表">
+    <CandidateCard v-for="person in items" :key="person.id" :person="person" :selected="checkedIds.includes(person.id)" :can-chat="canChat" @toggle="toggleChecked" @open="emit('open',$event)"/>
+  </div><el-empty v-if="!loading&&!loadError&&!items.length" description="没有符合条件的人才，请调整筛选条件或导入简历"/>
+  <el-pagination v-model:current-page="page" :total="total" :page-size="20" layout="total,prev,pager,next" @current-change="load"/>
+  <details id="resume-import" class="import-section"><summary>导入简历与逐文件进度</summary>
   <el-card v-if="canImport" style="margin-top:20px"><h2>导入简历</h2><p>PDF / PNG / JPEG / DOCX；单份10 MiB，PDF最多50页，每批最多20份。图片最多2500万像素，DOCX解压最多50 MiB/1000条目。</p><p class="muted">单文件解析最多12万字符、500个文字片段、100张文档图片。超时或失败会明确提示，最多执行3次。</p><p class="muted">导入先建立“待解析”档案；身份疑似重复时保留核对，不自动合并。</p><input ref="input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.docx"/><el-button :loading="busy" @click="upload">上传并解析</el-button><el-button :disabled="busy" @click="resetBatch">新建另一批</el-button><p v-for="(item,i) in uploads" :key="i">{{item.name}}：{{item.state}} <el-button v-if="item.id" @click="emit('task',item.id)">进度与结果</el-button></p></el-card>
   <el-card style="margin-top:20px"><h2>导入与解析批次</h2><el-select v-model="selectedBatch" placeholder="选择历史批次（最多50个）" style="width:400px" @change="loadBatch"><el-option v-for="batch in batches" :key="batch" :label="batch" :value="batch"/></el-select><el-button @click="loadBatch">刷新逐文件对账</el-button><p v-for="item in batchTasks" :key="item.id">{{item.name}} · {{item.state}} · {{item.error_code}} <el-button @click="emit('task',item.id)">查看</el-button></p><p v-for="item in batchFailures" :key="item.id">{{item.name}} · 上传失败：{{item.message}}</p></el-card>
+</details>
 </template>
 
-<style scoped>.fact-tag{display:block;white-space:normal;overflow-wrap:anywhere;font-size:13px;line-height:1.7;padding:4px 6px;margin:4px 0;color:#24584c;background:#edf6f2;border-radius:4px}.el-form{flex-wrap:wrap}</style>
+<style scoped>
+.candidate-filters{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr)) 150px auto;gap:12px}.candidate-filters .el-form-item{margin-bottom:12px;min-width:0}.requirement-filter{max-width:380px}.candidate-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;min-height:120px}.result-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:24px}.result-toolbar p{margin:6px 0}.batch-actions{display:flex;flex-wrap:wrap;gap:8px}.batch-actions .el-button{margin:0}.scope-note{margin:0 0 20px}.import-link{color:var(--accent);text-decoration:none;font-size:14px;font-weight:600}.import-section{margin-top:28px}.import-section>summary{padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-weight:600}.el-pagination{margin-top:24px}@media(max-width:1250px){.candidate-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.candidate-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.candidate-grid{grid-template-columns:1fr}.candidate-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.result-toolbar{align-items:flex-start;flex-direction:column}}
+</style>

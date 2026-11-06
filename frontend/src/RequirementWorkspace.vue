@@ -84,7 +84,7 @@ onBeforeUnmount(()=>{formGeneration++;if(pasteTimer)clearTimeout(pasteTimer)})
 <template>
   <div class="title-row"><div><p class="eyebrow">RECRUITMENT</p><h1>岗位需求</h1><p class="muted">草稿可暂存；确认生效后保存独立版本。使用已生效版本手动匹配，保留范围、证据与历史。</p></div><el-button v-if="canWrite" type="primary" @click="newItem">新建需求</el-button></div>
   <el-card v-loading="busy"><el-table :data="items" @row-click="view"><el-table-column label="名称"><template #default="s">{{s.row.draft.title||'未命名草稿'}}</template></el-table-column><el-table-column label="部门"><template #default="s">{{catalog.departments.find(d=>d.id===s.row.department_id)?.name||'—'}}</template></el-table-column><el-table-column label="公司岗位"><template #default="s">{{positionName(catalog.department_positions.find(p=>p.id===s.row.draft.department_position_id)?.position_id)}}</template></el-table-column><el-table-column label="状态"><template #default="s">{{states[s.row.status]}}</template></el-table-column><el-table-column prop="active_version" label="有效版本"/><el-table-column prop="version" label="编辑版本"/></el-table><el-empty v-if="!items.length" description="当前授权范围暂无岗位需求"/><el-pagination v-model:current-page="currentPage" :total="total" :page-size="20" layout="prev,pager,next" @current-change="()=>run(load)"/></el-card>
-  <el-dialog :model-value="!!selected" title="岗位需求与版本" width="800px" @close="close" :close-on-click-modal="false">
+  <el-dialog :model-value="!!selected" title="岗位需求与版本" width="min(960px,96vw)" @close="close" :close-on-click-modal="false">
     <template v-if="selected">
       <el-alert type="info" :closable="false" title="编辑表单后先保存草稿，再确认生效。未生效草稿不会改变原有效版本。"/>
       <el-form label-position="top" :disabled="!canWrite||busy" @input="touch" @change="touch">

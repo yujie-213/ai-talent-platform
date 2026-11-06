@@ -1,0 +1,1 @@
+export interface Candidate {id: string; name: string; kind: string; index_state: string; quality?:string; tags: {category: string; content: string; confirmed: boolean}[];requirements?:{requirement_id:string;title:string;score:number|null;state:string;group:string|null;stale:boolean;requirement_version:number|null;created_at:number|null;requirement_status:string}[]}

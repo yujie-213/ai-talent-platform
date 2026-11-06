@@ -13,11 +13,11 @@ try{
  // 只在三份自有合成档案增加页面筛选标签，验证当前档案/勾选/筛选三种上下文。
  const scopeTag='合成页面筛选专用-'+report.profiles[0].id.slice(0,8)
  for(const profile of report.profiles){const r=await ctx.request.get('http://127.0.0.1:8000/api/talents/'+profile.id,{headers:{Authorization:'Bearer '+token}});const t=(await r.json()).data;if(!t.facts.some(f=>f.content===scopeTag)){const body={};for(const k of ['kind','name','phone','email','department_id','department_position_id','owner_id','pool_id','version'])body[k]=t[k];body.facts=[...t.facts.map(f=>({category:f.category,content:f.content})),{category:'skill',content:scopeTag}];const saved=await ctx.request.put('http://127.0.0.1:8000/api/talents/'+profile.id,{headers:{Authorization:'Bearer '+token},data:body});if(saved.status()!==200)throw new Error('合成筛选标签保存失败')}}
- async function candidates(){await p.getByRole('button',{name:'候选人筛选',exact:true}).click();await p.getByPlaceholder('技能包含',{exact:true}).fill(scopeTag);await p.getByRole('button',{name:'筛选',exact:true}).click();await expect(p.locator('.el-table__row')).toHaveCount(3)}
- async function createScope(expectedKind,expectedCount){const response=p.waitForResponse(r=>r.url().endsWith('/chat/conversations')&&r.request().method()==='POST');await p.getByRole('button',{name:'按当前页面上下文新建会话',exact:true}).click();const scope=(await(await response).json()).data.scope;if(scope.kind!==expectedKind||scope.ids.length!==expectedCount)throw new Error('页面上下文范围不一致')}
- await candidates();await p.locator('.el-table__row').filter({hasText:report.profiles[0].name}).locator('.el-checkbox').click();await p.getByRole('button',{name:'与勾选人才聊天（1）',exact:true}).click();await createScope('selected',1)
+ async function candidates(){await p.getByRole('button',{name:'候选人筛选',exact:true}).click();await p.getByPlaceholder('技能包含',{exact:true}).fill(scopeTag);await p.getByRole('button',{name:'筛选',exact:true}).click();await expect(p.getByTestId('candidate-card')).toHaveCount(3)}
+ async function createScope(expectedKind,expectedCount,detail=false){const panel=p.getByRole('dialog',{name:detail?'人才详情':'人才范围问答'});const response=p.waitForResponse(r=>r.url().endsWith('/chat/conversations')&&r.request().method()==='POST');await panel.locator('textarea').fill('这些人有多少？');await panel.getByRole('button',{name:'发送',exact:true}).click();const scope=(await(await response).json()).data.scope;if(scope.kind!==expectedKind||scope.ids.length!==expectedCount)throw new Error('页面上下文范围不一致');await expect(panel.getByTestId('chat-job')).toBeVisible();await panel.getByRole('button',{name:/Close this dialog|关闭此对话框/,exact:true}).click()}
+ await candidates();await p.getByTestId('candidate-card').filter({hasText:report.profiles[0].name}).locator('.el-checkbox').click();await p.getByRole('button',{name:'与勾选人才聊天（1）',exact:true}).click();await createScope('selected',1)
  await candidates();await p.getByRole('button',{name:'按当前筛选范围聊天',exact:true}).click();await createScope('filtered',3)
- await candidates();await p.getByRole('cell',{name:report.profiles[0].name,exact:true}).click();await p.getByRole('button',{name:'与当前人才档案对话',exact:true}).click();await createScope('selected',1)
+ await candidates();await p.getByTestId('candidate-card').filter({hasText:report.profiles[0].name}).getByRole('button',{name:'查看档案',exact:true}).click();await createScope('selected',1,true)
  await p.getByRole('button',{name:'档案聊天',exact:true}).click()
  await expect(p.getByRole('heading',{name:'档案聊天',exact:true})).toBeVisible()
  // 页面历史读取真实完整语义结果，逐人展开并点击受控引用。
@@ -41,7 +41,7 @@ try{
  await p.getByRole('button',{name:new RegExp(report.profiles[0].name)}).first().click()
  await p.getByRole('button',{name:/核对人工事实/}).first().click()
  await expect(p.getByRole('dialog',{name:'当前权限下核对来源'})).toContainText(report.profiles[0].name)
- await p.getByRole('dialog',{name:'当前权限下核对来源'}).getByRole('button',{name:'Close this dialog',exact:true}).click()
+ await p.getByRole('dialog',{name:'当前权限下核对来源'}).getByRole('button',{name:/Close this dialog|关闭此对话框/,exact:true}).click()
  // 在同一入口自然语言发起真实新任务，观察SSE，无需切换技术模式。
  let streamSeen=false;p.on('response',r=>{if(r.url().includes('/events?')&&r.headers()['content-type']?.includes('text/event-stream'))streamSeen=true})
  await p.locator('textarea').fill('这些人有多少？只统计当前三个人，不扩大范围，不要求语义条件。')
@@ -63,7 +63,7 @@ try{
  if(download.suggestedFilename()!==fileReport.file_name)throw new Error('原文件名称不匹配')
  await download.saveAs('../data/stage-four/from-chat-source.docx')
  await p.screenshot({path:'../data/stage-four/chat-file-browser.png',fullPage:true,animations:'disabled'})
- await fileDialog.getByRole('button',{name:'Close this dialog',exact:true}).click()
+ await fileDialog.getByRole('button',{name:/Close this dialog|关闭此对话框/,exact:true}).click()
  console.log('真实聊天及原文件下载断言通过，切换管理员')
  const adm=await login('admin',adminPassword)
  await expect(adm.p.getByRole('button',{name:'档案聊天',exact:true})).toHaveCount(0)

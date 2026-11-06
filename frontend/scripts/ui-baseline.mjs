@@ -1,0 +1,4 @@
+import {chromium} from '@playwright/test'
+import {readFile,mkdir} from 'node:fs/promises'
+const access=await readFile('../data/local-access.txt','utf8');const b=await chromium.launch({channel:'msedge',headless:true});await mkdir('../data/ui-redesign',{recursive:true});
+try{for(const user of ['demo.hr','demo.employee','admin']){const p=await b.newPage({viewport:{width:1440,height:900}});await p.goto('http://127.0.0.1:5173');const password=access.match(user==='admin'?/^admin: (.+)$/m:/^demo.hr \/ demo.employee: (.+)$/m)?.[1];if(!password)throw Error('缺少本机账号');await p.locator('input').nth(0).fill(user);await p.locator('input').nth(1).fill(password);await p.getByRole('button',{name:'登录',exact:true}).click();await p.getByRole('heading',{name:'工作台',exact:true}).waitFor();console.log(user,await p.locator('nav').innerText());await p.screenshot({path:`../data/ui-redesign/before-${user}.png`});await p.close()}}finally{await b.close()}

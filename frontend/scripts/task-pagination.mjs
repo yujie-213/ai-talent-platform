@@ -60,8 +60,8 @@ try {
 
   await page.getByRole('button',{name:'人才档案',exact:true}).click()
   await page.getByText(talent.name,{exact:true}).click()
-  await page.locator('.el-drawer').getByRole('button',{name:'测试成功',exact:true}).click()
-  await expect(page.locator('.el-drawer')).toBeHidden()
+  await page.locator('.talent-drawer').getByRole('button',{name:'测试成功',exact:true}).click()
+  await expect(page.locator('.talent-drawer')).toBeHidden()
   await expect(page.getByTestId('task-total')).toHaveText('共 62 条任务')
   await expect(page.getByTestId('focused-task-id')).toHaveText(newId)
   await expect(table).not.toContainText(newId)

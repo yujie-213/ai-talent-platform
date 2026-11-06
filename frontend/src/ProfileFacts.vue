@@ -1,0 +1,7 @@
+<script setup lang="ts">
+import {categoryName} from './labels'
+defineProps<{talent:{name:string;kind:string;phone:string;email:string;facts?:{category:string;content:string;confirmed?:boolean;source_version?:number}[]}}>()
+const categories=['education','experience','project','skill','certificate']
+</script>
+<template><div class="profile-contacts"><div><span>电话</span><p>{{talent.phone||'未记录'}}</p></div><div><span>邮箱</span><p>{{talent.email||'未记录'}}</p></div></div><section v-for="category in categories" :key="category" class="profile-fact-group"><h3>{{categoryName[category]}}</h3><article v-for="(fact,index) in talent.facts?.filter(f=>f.category===category)||[]" :key="index"><p>{{fact.content}}</p><span class="muted">{{fact.confirmed?'人工维护':'简历声明'}} · 来源版本 {{fact.source_version??'未知'}}</span></article><p v-if="!talent.facts?.some(f=>f.category===category)" class="muted">暂未记录{{categoryName[category]}}资料</p></section></template>
+<style scoped>.profile-contacts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:20px 0;border-bottom:1px solid var(--border)}.profile-contacts span{font-size:12px;color:var(--text-secondary)}.profile-contacts p{margin:8px 0 0;overflow-wrap:anywhere}.profile-fact-group h3{border-left:3px solid var(--accent);padding-left:12px}.profile-fact-group article{padding:14px 16px;background:var(--surface-muted);border-radius:8px;margin:10px 0}.profile-fact-group article p{white-space:pre-wrap;font-size:14px;margin:0 0 10px}.profile-fact-group article span{font-size:12px}</style>

@@ -7,6 +7,7 @@ import type {Candidate} from './candidate'
 const props = defineProps<{api: Api; canImport: boolean;canRequirements?:boolean;canChat?:boolean;departments?:{id:string;name?:string}[]}>()
 const emit = defineEmits<{open: [id: string]; task: [id: string];chat:[scope:{kind:'selected'|'filtered';ids?:string[];filters?:Record<string,string>}]}>()
 
+const activeTab=ref('candidates')
 const checkedIds=ref<string[]>([])
 const loadError=ref('')
 function toggleChecked(id:string){checkedIds.value=checkedIds.value.includes(id)?checkedIds.value.filter(x=>x!==id):[...checkedIds.value,id]}
@@ -72,8 +73,10 @@ async function upload() {
 onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;const all:typeof requirements.value=[];while(true){const data=await props.api<{items:typeof requirements.value;total:number}>(`/requirements?offset=${offset}&limit=100`);all.push(...data.items);if(!data.items.length||all.length>=data.total)break;offset+=data.items.length}requirements.value=all}catch(error){ElMessage.error((error as Error).message)}}})
 </script>
 <template>
-  <div class="title-row"><div><p class="eyebrow">TALENT LIBRARY / 人才库</p><h1>候选人筛选</h1><p class="muted">从资料中发现合适的人才，再用证据深入了解。</p></div><a v-if="canImport" class="import-link" href="#resume-import">导入简历 ↗</a></div>
-  <el-card class="filter-card"><el-form label-position="top" class="candidate-filters" @submit.prevent="page=1;load()">
+  <div class="title-row"><div><p class="eyebrow">TALENT LIBRARY / 人才库</p><h1>候选人筛选</h1><p class="muted">从资料中发现合适的人才，再用证据深入了解。</p></div><el-button v-if="canImport" type="primary" @click="activeTab='imports'">＋ 上传简历</el-button></div>
+  <el-tabs v-model="activeTab" class="resume-tabs"><el-tab-pane label="候选人筛选" name="candidates"/><el-tab-pane label="导入与解析记录" name="imports"/></el-tabs>
+  <div v-show="activeTab==='candidates'">
+  <el-card class="filter-card"><div class="filter-heading"><strong>筛选条件</strong><span class="muted">基于当前授权档案 · 按人才展示</span></div><el-form label-position="top" class="candidate-filters" @submit.prevent="page=1;load()">
     <el-form-item label="人才身份"><el-select v-model="filters.kind"><el-option label="外部候选人" value="external"/><el-option label="内部员工" value="internal"/><el-option label="全部授权人才" value=""/></el-select></el-form-item>
     <el-form-item label="技能"><el-input v-model="filters.skill" placeholder="技能包含" clearable/></el-form-item>
     <el-form-item label="教育"><el-input v-model="filters.education" placeholder="教育原文包含，如本科" clearable/></el-form-item>
@@ -88,12 +91,13 @@ onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;cons
     <CandidateCard v-for="person in items" :key="person.id" :person="person" :selected="checkedIds.includes(person.id)" :can-chat="canChat" @toggle="toggleChecked" @open="emit('open',$event)"/>
   </div><el-empty v-if="!loading&&!loadError&&!items.length" description="没有符合条件的人才，请调整筛选条件或导入简历"/>
   <el-pagination v-model:current-page="page" :total="total" :page-size="20" layout="total,prev,pager,next" @current-change="load"/>
-  <details id="resume-import" class="import-section"><summary>导入简历与逐文件进度</summary>
+  </div><details v-show="activeTab==='imports'" id="resume-import" class="import-section" open><summary>导入简历与逐文件进度</summary>
   <el-card v-if="canImport" style="margin-top:20px"><h2>导入简历</h2><p>PDF / PNG / JPEG / DOCX；单份10 MiB，PDF最多50页，每批最多20份。图片最多2500万像素，DOCX解压最多50 MiB/1000条目。</p><p class="muted">单文件解析最多12万字符、500个文字片段、100张文档图片。超时或失败会明确提示，最多执行3次。</p><p class="muted">导入先建立“待解析”档案；身份疑似重复时保留核对，不自动合并。</p><input ref="input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.docx"/><el-button :loading="busy" @click="upload">上传并解析</el-button><el-button :disabled="busy" @click="resetBatch">新建另一批</el-button><p v-for="(item,i) in uploads" :key="i">{{item.name}}：{{item.state}} <el-button v-if="item.id" @click="emit('task',item.id)">进度与结果</el-button></p></el-card>
   <el-card style="margin-top:20px"><h2>导入与解析批次</h2><el-select v-model="selectedBatch" placeholder="选择历史批次（最多50个）" style="width:400px" @change="loadBatch"><el-option v-for="batch in batches" :key="batch" :label="batch" :value="batch"/></el-select><el-button @click="loadBatch">刷新逐文件对账</el-button><p v-for="item in batchTasks" :key="item.id">{{item.name}} · {{item.state}} · {{item.error_code}} <el-button @click="emit('task',item.id)">查看</el-button></p><p v-for="item in batchFailures" :key="item.id">{{item.name}} · 上传失败：{{item.message}}</p></el-card>
 </details>
 </template>
 
 <style scoped>
+.filter-heading{display:flex;justify-content:space-between;gap:12px;margin-bottom:20px;font-size:15px}.resume-tabs{margin-bottom:8px}.import-section{scroll-margin-top:20px}
 .candidate-filters{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr)) 150px auto;gap:12px}.candidate-filters .el-form-item{margin-bottom:12px;min-width:0}.requirement-filter{max-width:380px}.candidate-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;min-height:120px}.result-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:24px}.result-toolbar p{margin:6px 0}.batch-actions{display:flex;flex-wrap:wrap;gap:8px}.batch-actions .el-button{margin:0}.scope-note{margin:0 0 20px}.import-link{color:var(--accent);text-decoration:none;font-size:14px;font-weight:600}.import-section{margin-top:28px}.import-section>summary{padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-weight:600}.el-pagination{margin-top:24px}@media(max-width:1250px){.candidate-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.candidate-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.candidate-grid{grid-template-columns:1fr}.candidate-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.result-toolbar{align-items:flex-start;flex-direction:column}}
 </style>

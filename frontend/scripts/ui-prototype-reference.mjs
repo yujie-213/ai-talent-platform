@@ -1,0 +1,4 @@
+import {chromium} from '@playwright/test'
+import {pathToFileURL} from 'node:url'
+import {mkdir} from 'node:fs/promises'
+await mkdir('../data/ui-prototype-alignment',{recursive:true});const b=await chromium.launch({channel:'msedge',headless:true});try{const p=await b.newPage({viewport:{width:1440,height:900}});await p.goto(pathToFileURL('D:/AI数字化人才平台/AI数字化人才平台前期文档/项目文档/需求文档/AI数字化人才平台_交互原型修订_V1.0 (1).html').href);await p.screenshot({path:'../data/ui-prototype-alignment/reference-workbench.png',fullPage:true});await p.locator('nav').getByRole('button',{name:'简历智能筛选'}).click();await p.screenshot({path:'../data/ui-prototype-alignment/reference-candidates.png',fullPage:true});await p.getByRole('button',{name:'查看画像',exact:true}).first().click();await p.screenshot({path:'../data/ui-prototype-alignment/reference-profile.png',fullPage:true});console.log('原型三页截图完成')}finally{await b.close()}

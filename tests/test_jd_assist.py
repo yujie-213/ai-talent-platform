@@ -126,3 +126,11 @@ def test_jd_invalid_response_and_salary_units(ctx, monkeypatch):
     assert response.status_code == 503 and response.json()['error']['code'] == 'LLM_INVALID_RESPONSE'
     assert jd_assist.salary_grounded({'mode': 'range', 'minimum': 20000, 'maximum': 30000, 'currency': 'CNY', 'period': 'month'}, '2-3万元/月') is False
     assert jd_assist.salary_grounded({'mode': 'range', 'minimum': 20000, 'maximum': 30000, 'currency': 'CNY', 'period': 'month'}, '20k-30k元/月')
+
+
+def test_jd_skill_years_require_specific_evidence():
+    body=JDAssist.model_validate({'mode':'extract','draft':{'department_position_id':'synthetic','jd_text':'需要3年Python经验，5年工作经验'}})
+    valid=jd_assist.validate({'suggestions':[{'field':'conditions.skill_experience_years','value':{'Python':3},'quote':'3年Python经验'}]},body)
+    assert valid['suggestions'][0]['value']=={'Python':3}
+    invalid=jd_assist.validate({'suggestions':[{'field':'conditions.skill_experience_years','value':{'Python':5},'quote':'需要3年Python经验，5年工作经验'}]},body)
+    assert invalid['suggestions']==[]

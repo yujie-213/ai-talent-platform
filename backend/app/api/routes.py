@@ -10,6 +10,8 @@ from app.services import candidates
 from app.services import resume_index
 from app.services import requirements
 from app.services import jd_assist
+from app.services import match_tasks
+from app.schemas.matching import MatchStart, Association
 from app.schemas.requirements import RequirementDraft, RequirementUpdate, RequirementConfirm, JDAssist
 router = APIRouter(prefix='/api')
 def response(request, data):
@@ -53,6 +55,36 @@ def requirement_disable(requirement_id: str, body: VersionInput, request: Reques
     return response(request, requirements.transition(db, user, requirement_id, body.version, request.state.request_id, False))
 
 
+@router.post('/requirements/{requirement_id}/matches', status_code=202)
+def match_start(requirement_id: str, body: MatchStart, request: Request, user=Depends(current_user), db=Depends(get_db), idempotency_key: str=Header('')):
+    return response(request, match_tasks.start(db,user,requirement_id,body,idempotency_key,request.state.request_id))
+
+
+@router.get('/requirements/{requirement_id}/matches')
+def match_history(requirement_id: str, request: Request, user=Depends(current_user), db=Depends(get_db), offset: int=Query(0,ge=0),limit: int=Query(20,ge=1,le=100)):
+    return response(request,match_tasks.history(db,user,requirement_id,offset,limit))
+
+
+@router.get('/matches/{run_id}')
+def match_detail(run_id: str, request: Request, user=Depends(current_user),db=Depends(get_db)):
+    return response(request,match_tasks.detail(db,user,run_id))
+
+
+@router.get('/matches/{run_id}/results')
+def match_results(run_id: str, request: Request,user=Depends(current_user),db=Depends(get_db),offset: int=Query(0,ge=0),limit: int=Query(20,ge=1,le=100),group: str=Query('',pattern='^(pass|unknown|fail|failed|pending)?$')):
+    return response(request,match_tasks.results(db,user,run_id,offset,limit,group))
+
+
+@router.post('/matches/{run_id}/retry',status_code=202)
+def match_retry(run_id: str, body: VersionInput, request: Request,user=Depends(current_user),db=Depends(get_db)):
+    return response(request,match_tasks.retry(db,user,run_id,body.version,request.state.request_id))
+
+
+@router.put('/requirements/{requirement_id}/talents/{talent_id}')
+def requirement_associate(requirement_id: str,talent_id: str,body: Association,request: Request,user=Depends(current_user),db=Depends(get_db)):
+    return response(request,match_tasks.associate(db,user,requirement_id,talent_id,body,request.state.request_id))
+
+
 @router.post('/imports/{batch_id}', status_code=202)
 async def import_resume(batch_id: UUID, file: UploadFile, request: Request, user=Depends(current_user),
                         db=Depends(get_db), idempotency_key: str=Header('')):
@@ -73,8 +105,8 @@ def import_batch(batch_id: UUID, request: Request, user=Depends(current_user), d
 def candidate_page(request: Request, user=Depends(current_user), db=Depends(get_db),
                    offset: int=Query(0, ge=0), limit: int=Query(20, ge=1, le=100),
                    kind: str=Query('', pattern='^(internal|external)?$'),
-                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100), sort: str=Query('name_asc', pattern='^(name_asc|name_desc|version_desc)$')):
-    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience, sort))
+                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100), sort: str=Query('name_asc', pattern='^(name_asc|name_desc|version_desc)$'),requirement_id: str=Query('',max_length=36)):
+    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience, sort,requirement_id))
 
 
 @router.post('/files/{file_id}/parse', status_code=202)

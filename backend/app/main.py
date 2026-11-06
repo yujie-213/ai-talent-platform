@@ -18,7 +18,7 @@ async def lifespan(app):
         raise RuntimeError('JWT_SECRET 必须在本机配置至少 32 字符随机值')
     yield
 
-app = FastAPI(title='AI 数字化人才平台 · 阶段一', lifespan=lifespan)
+app = FastAPI(title='AI 数字化人才平台', lifespan=lifespan)
 app.include_router(router)
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 

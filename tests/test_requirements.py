@@ -134,3 +134,14 @@ def test_requirement_grant_api_and_action_scope_independence(ctx):
 def next_department(dp_id):
     with Session() as db:
         return db.get(DepartmentPosition, dp_id).department_id
+
+
+def test_priority_and_required_contradiction_blocks_activation(ctx):
+    client,headers,_,_,dp=setup(ctx)
+    body={**full(dp[0]),'description':'Python优先，学历经验不限'}
+    item=create(client,headers['demo.hr'],body)
+    path='/api/requirements/'+item['id']
+    rejected=client.post(path+'/activate',headers=headers['demo.hr'],json={'version':1,'confirmed':True})
+    assert rejected.status_code==422 and rejected.json()['error']['code']=='CONDITION_CONFLICT'
+    saved=client.put(path,headers=headers['demo.hr'],json={**body,'description':'Python为必备技能，学历经验不限','version':1}).json()['data']
+    assert client.post(path+'/activate',headers=headers['demo.hr'],json={'version':saved['version'],'confirmed':True}).status_code==200

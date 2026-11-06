@@ -75,14 +75,17 @@ def main():
             time.sleep(30)
     else:
         from app.tasks.worker import dispatch, recover
+        from app.services.match_tasks import dispatch as dispatch_matches, recover as recover_matches
         if args.command == 'dispatch':
-            print('published:', dispatch())
+            print('published:', dispatch() + dispatch_matches())
         elif args.command == 'recover':
-            print('recovered:', recover())
+            print('recovered:', recover() + recover_matches())
         else:
             while True:
                 recover()
+                recover_matches()
                 dispatch()
+                dispatch_matches()
                 time.sleep(3)
 
 if __name__ == '__main__':

@@ -96,6 +96,12 @@ def parse(task_id: str, version: int):
         execute_parse(task_id, version)
 
 
+@celery.task(name='talent.match', soft_time_limit=7140, time_limit=7200)
+def match(run_id: str, version: int):
+    from app.services.match_tasks import execute
+    execute(run_id, version)
+
+
 def requeue(db, task: Task, from_state: str) -> bool:
     version = task.run_version
     query = update(Task).where(Task.id == task.id, Task.run_version == version, Task.state == from_state)

@@ -233,3 +233,62 @@ class RequirementVersion(Base):
     snapshot: Mapped[dict] = mapped_column(JSON)
     confirmed_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class MatchRun(Base):
+    __tablename__ = 'match_runs'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    requirement_id: Mapped[str] = mapped_column(ForeignKey('recruitment_requirements.id'), index=True)
+    requirement_version: Mapped[int] = mapped_column(Integer)
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    requirement_snapshot: Mapped[dict] = mapped_column(JSON)
+    scope_snapshot: Mapped[dict] = mapped_column(JSON)
+    rules: Mapped[dict] = mapped_column(JSON)
+    state: Mapped[str] = mapped_column(String(20), default='queued')
+    outcome: Mapped[str | None] = mapped_column(String(20))
+    run_version: Mapped[int] = mapped_column(Integer, default=1)
+    lease_until: Mapped[int | None] = mapped_column(Integer)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class MatchEntry(Base):
+    __tablename__ = 'match_entries'
+    __table_args__ = (UniqueConstraint('run_id', 'talent_id'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    run_id: Mapped[str] = mapped_column(ForeignKey('match_runs.id'), index=True)
+    talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'))
+    snapshot: Mapped[dict] = mapped_column(JSON)
+    lexical_score: Mapped[float] = mapped_column(default=0.0)
+    state: Mapped[str] = mapped_column(String(20), default='pending')
+    result: Mapped[dict | None] = mapped_column(JSON)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+
+
+class MatchAttempt(Base):
+    __tablename__ = 'match_attempts'
+    __table_args__ = (UniqueConstraint('run_id', 'run_version'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    run_id: Mapped[str] = mapped_column(ForeignKey('match_runs.id'))
+    run_version: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(20))
+    started_at: Mapped[int] = mapped_column(Integer)
+    ended_at: Mapped[int | None] = mapped_column(Integer)
+
+
+class MatchOutbox(Base):
+    __tablename__ = 'match_outbox'
+    __table_args__ = (UniqueConstraint('run_id', 'run_version'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    run_id: Mapped[str] = mapped_column(ForeignKey('match_runs.id'))
+    run_version: Mapped[int] = mapped_column(Integer)
+    published_at: Mapped[int | None] = mapped_column(Integer, index=True)
+    tries: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class TalentRequirement(Base):
+    __tablename__ = 'talent_requirements'
+    talent_id: Mapped[str] = mapped_column(ForeignKey('talents.id'), primary_key=True)
+    requirement_id: Mapped[str] = mapped_column(ForeignKey('recruitment_requirements.id'), primary_key=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))

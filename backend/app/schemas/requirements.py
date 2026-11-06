@@ -24,6 +24,7 @@ class Conditions(Input):
     preferred_skills: list[str] = Field(default_factory=list, max_length=30)
     minimum_education: Literal['不限', '高中', '大专', '本科', '硕士', '博士']
     minimum_experience_years: int | None = Field(None, ge=0, le=60)
+    skill_experience_years: dict[str, int] = Field(default_factory=dict, max_length=30)
 
     @model_validator(mode='after')
     def check_skills(self):
@@ -34,6 +35,11 @@ class Conditions(Input):
         preferred = {s.strip().casefold() for s in self.preferred_skills}
         if required & preferred or len(required) != len(self.required_skills) or len(preferred) != len(self.preferred_skills):
             raise ValueError('技能不能重复或同时为必备与加分')
+        if any(k.strip().casefold() not in required or not 0 <= value <= 60 for k,value in self.skill_experience_years.items()):
+            raise ValueError('技能年限只可对应必备技能，数值为0至60年')
+        if len({k.strip().casefold() for k in self.skill_experience_years})!=len(self.skill_experience_years):
+            raise ValueError('技能年限条件不能重复')
+        self.skill_experience_years={next(s.strip() for s in self.required_skills if s.strip().casefold()==k.strip().casefold()):v for k,v in self.skill_experience_years.items()}
         self.required_skills = [s.strip() for s in self.required_skills]
         self.preferred_skills = [s.strip() for s in self.preferred_skills]
         return self

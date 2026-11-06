@@ -1,10 +1,30 @@
 """需求草稿与不可变有效版本。授权按部门及动作独立检查。"""
+import re
 from sqlalchemy import select, update, func, or_, false
 from sqlalchemy.exc import IntegrityError
 from app.core.security import fail, grants
 from app.models.entities import DepartmentPosition, RecruitmentRequirement, RequirementVersion
 from app.services.business import row, audit, existing, remember
 from app.schemas.requirements import RequirementDraft
+
+
+def condition_conflicts(draft: RequirementDraft) -> list[str]:
+    """拦截可直接识别的正文/结构矛盾；复杂语义仍由HR核对。"""
+    if not draft.conditions:
+        return []
+    clauses=re.split(r'[，,;；。\n]',draft.description)
+    conflicts=[]
+    for skills,required in [(draft.conditions.required_skills,True),(draft.conditions.preferred_skills,False)]:
+        for skill in skills:
+            pattern=r'(?<![a-z0-9_+#])'+re.escape(skill)+r'(?![a-z0-9_+#])' if skill.isascii() else re.escape(skill)
+            for clause in clauses:
+                if not re.search(pattern,clause,re.I):continue
+                optional=bool(re.search(r'优先|加分|非必[备须]|可选|不要求|无需',clause))
+                mandatory=bool(re.search(r'必备|必须|硬性要求',clause)) and not optional
+                if (required and optional) or (not required and mandatory):
+                    conflicts.append(skill+'：正文与必备/加分分类不一致')
+                    break
+    return conflicts
 
 
 def scope(db, user, action: str):
@@ -108,6 +128,9 @@ def transition(db, user, requirement_id: str, version: int, request_id: str, act
         if not confirmed or not all([draft.title, draft.location, draft.salary,
                                     draft.responsibilities, draft.description, draft.conditions]):
             fail(422, 'REQUIREMENT_INCOMPLETE', '请补齐名称、地点、薪资、职责、要求及结构化条件，并确认正文与条件一致')
+        conflicts=condition_conflicts(draft)
+        if conflicts:
+            fail(422,'CONDITION_CONFLICT','；'.join(conflicts)+'，请修改草稿后重新确认')
         number = (item.active_version or 0) + 1
         values['active_version'] = number
     elif item.status != 'active':

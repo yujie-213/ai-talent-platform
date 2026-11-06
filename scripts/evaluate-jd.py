@@ -12,6 +12,7 @@ from app.services.resume_reader import ResumeError
 samples = [
     ('complete', 'extract', '岗位名称：合成Python工程师\n工作地点：北京\n岗位职责：开发Python接口服务\n任职要求：必须掌握Python，Docker优先；本科及以上，3年工作经验\n薪资：20000-30000人民币元/月\n福利：带薪年假'),
     ('sparse', 'improve', '开发Python接口服务，缺少其他企业信息，请组织正式职责并提出待确认建议。'),
+    ('skill-years','extract','岗位名称：合成Python工程师。任职要求：Python开发经验：3年，总工作经验：5年。'),
 ]
 report = []
 for name, mode, source in samples:
@@ -24,6 +25,8 @@ for name, mode, source in samples:
                     'conditions.minimum_education', 'conditions.minimum_experience_years'}
         missing = sorted(expected - fields) if name == 'complete' else []
         violations = [s['field'] for s in result['suggestions'] if name == 'sparse' and s['field'] in ['title', 'location', 'salary', 'benefits']]
+        if name=='skill-years' and 'conditions.skill_experience_years' not in fields:
+            missing.append('conditions.skill_experience_years')
         report.append({'sample': name, 'mode': mode, 'result': result, 'missing_core_fields': missing, 'enterprise_fact_violations': violations})
         print(name, 'suggestions', len(result['suggestions']), 'missing_core_fields', len(missing), 'enterprise_fact_violations', len(violations), flush=True)
     except ResumeError as exc:

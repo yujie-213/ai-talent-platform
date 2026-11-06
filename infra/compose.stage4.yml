@@ -1,0 +1,11 @@
+# 与compose.yml、compose.stage2.yml共同使用；不改MySQL/Redis/向量服务。
+services:
+  worker:
+    image: ai-talent-stage4-backend:0.4.0
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.stage4
+  dispatcher:
+    image: ai-talent-stage4-backend:0.4.0
+  indexer:
+    image: ai-talent-stage4-backend:0.4.0

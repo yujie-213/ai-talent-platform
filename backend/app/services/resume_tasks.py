@@ -173,8 +173,11 @@ def execute_parse(task_id: str, version: int) -> None:
         content = safe_path(path).read_bytes()
         if hashlib.sha256(content).hexdigest() != expected:
             raise ResumeError('FILE_HASH_MISMATCH')
-        segments = read_resume(name, content, paddle_ocr)
-        validated = validate_extraction(extract_fields(segments), segments)
+        from app.services.ai_logging import model_context
+        with model_context('resume.ocr',task_id):
+            segments = read_resume(name, content, paddle_ocr)
+        with model_context('resume.extract',task_id):
+            validated = validate_extraction(extract_fields(segments), segments)
     except ResumeError as exc:
         error = str(exc)
     except Exception:

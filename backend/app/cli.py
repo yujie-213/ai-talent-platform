@@ -76,16 +76,19 @@ def main():
     else:
         from app.tasks.worker import dispatch, recover
         from app.services.match_tasks import dispatch as dispatch_matches, recover as recover_matches
+        from app.services.chat_jobs import dispatch as dispatch_chats, recover as recover_chats
         if args.command == 'dispatch':
-            print('published:', dispatch() + dispatch_matches())
+            print('published:', dispatch() + dispatch_matches() + dispatch_chats())
         elif args.command == 'recover':
-            print('recovered:', recover() + recover_matches())
+            print('recovered:', recover() + recover_matches() + recover_chats())
         else:
             while True:
                 recover()
                 recover_matches()
+                recover_chats()
                 dispatch()
                 dispatch_matches()
+                dispatch_chats()
                 time.sleep(3)
 
 if __name__ == '__main__':

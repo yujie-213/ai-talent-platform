@@ -34,3 +34,31 @@ def test_assessment_grants_are_explicit_and_action_scoped(ctx):
     assert c.get('/api/assessments/questions', headers=h['demo.hr']).status_code == 200
     assert c.get('/api/assessments/published-choices', headers=h['demo.hr']).status_code == 403
     assert c.get('/api/assessments/questions', headers=h['admin']).status_code == 403
+
+
+def test_menu_configuration_never_grants_business_access(ctx):
+    c,h,ids,*_=ctx
+    roles=c.get('/api/admin/roles',headers=h['admin']).json()['data']
+    role=next(r for r in roles if r['name']=='系统管理')
+    path='/api/admin/roles/'+role['id']+'/menus'
+    assert c.put(path,headers=h['demo.hr'],json={'version':role['version'],'menus':['talents']}).status_code==403
+    assert c.put(path,headers=h['admin'],json={'version':role['version'],'menus':['talents','workbench','roles']}).status_code==200
+    menus=c.get('/api/auth/me',headers=h['admin']).json()['data']['menus']
+    assert menus==['workbench','roles']
+    assert c.put(path,headers=h['admin'],json={'version':role['version'],'menus':[]}).status_code==409
+    assert c.get('/api/talents',headers=h['admin']).json()['data']['total']==0
+
+
+def test_binding_metadata_and_logs_are_controlled(ctx):
+    from app.models.chat_entities import AICall
+    c,h,ids,*_=ctx
+    choices=c.get('/api/admin/binding-choices?q=合成',headers=h['admin']).json()['data']
+    assert choices['total']>=2
+    assert all(set(t)=={'id','name','kind','department_id'} for t in choices['items'])
+    assert c.get('/api/admin/binding-choices',headers=h['demo.employee']).status_code==403
+    with Session.begin() as db:
+        db.add(AICall(operation='chat.evidence',target_id=None,model='synthetic',state='failed',elapsed_ms=17,error_code='LLM_TIMEOUT'))
+    logs=c.get('/api/admin/logs/ai?state=failed&action=chat',headers=h['admin']).json()['data']
+    assert logs['total']==1 and logs['items'][0]['elapsed_ms']==17
+    assert set(logs['items'][0])=={'id','operation','target_id','model','state','elapsed_ms','error_code','created_at'}
+    assert c.get('/api/admin/logs/ai',headers=h['demo.hr']).status_code==403

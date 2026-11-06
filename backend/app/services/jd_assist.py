@@ -119,7 +119,9 @@ def assist(db, user, body: JDAssist, request_id: str) -> dict:
     db.rollback()
     error = None
     try:
-        result = validate(generate_json(PROMPT, {'mode': body.mode, 'draft': body.draft.model_dump()}), body)
+        from app.services.ai_logging import model_context
+        with model_context('jd.assist',request_id):
+            result = validate(generate_json(PROMPT, {'mode': body.mode, 'draft': body.draft.model_dump()}), body)
     except ResumeError as exc:
         error = str(exc)
     db.expire_all()

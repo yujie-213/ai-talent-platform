@@ -30,8 +30,9 @@ def login(body: Login, request_id: str, db: DbSession) -> dict:
     return {'token': token(user)}
 
 def me(request_id: str, user: User, db: DbSession) -> dict:
+    from app.services.management import current_menus
     role_ids = list(db.scalars(select(UserRole.role_id).where(UserRole.user_id == user.id)))
-    return {**public_user(user), 'role_ids': role_ids, 'grants': [row(g) for g in db.scalars(select(Grant).where(Grant.role_id.in_(role_ids)))]}
+    return {**public_user(user), 'role_ids': role_ids, 'menus':current_menus(db,user), 'grants': [row(g) for g in db.scalars(select(Grant).where(Grant.role_id.in_(role_ids)))]}
 
 def users(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> list[dict]:
     require(db, user, 'account.manage')
@@ -39,6 +40,10 @@ def users(request_id: str, user: User, db: DbSession, offset: int, limit: int) -
 
 def create_user(body: UserCreate, request_id: str, user: User, db: DbSession) -> dict:
     require(db, user, 'account.manage')
+    if body.department_id:
+        department=db.get(Department,body.department_id)
+        if not department or not department.enabled:
+            fail(422,'VALIDATION_ERROR','新账号部门必须存在且启用')
     obj = User(username=body.username, password_hash=hash_password(body.password), department_id=body.department_id)
     db.add(obj)
     db.flush()
@@ -52,7 +57,15 @@ def edit_user(user_id: str, body: UserUpdate, request_id: str, user: User, db: D
         fail(404, 'NOT_FOUND', '账号不存在')
     if len(set(body.role_ids)) != len(body.role_ids) or any((not db.get(Role, r) for r in body.role_ids)):
         fail(422, 'VALIDATION_ERROR', '角色无效')
-    result = db.execute(update(User).where(User.id == user_id, User.version == body.version).values(enabled=body.enabled, talent_id=body.talent_id, version=body.version + 1))
+    values={'enabled':body.enabled,'talent_id':body.talent_id,'version':body.version+1}
+    if 'department_id' in body.model_fields_set:
+        if body.department_id:
+            target=db.get(Department,body.department_id)
+            previous=db.get(User,user_id)
+            if not target or (not target.enabled and previous.department_id!=body.department_id):
+                fail(422,'VALIDATION_ERROR','部门不存在或已停用')
+        values['department_id']=body.department_id
+    result = db.execute(update(User).where(User.id == user_id, User.version == body.version).values(**values))
     if result.rowcount != 1:
         fail(409, 'VERSION_CONFLICT', '账号已变更')
     db.execute(delete(UserRole).where(UserRole.user_id == user_id))
@@ -131,10 +144,15 @@ def edit_catalog(kind: str, object_id: str, body: dict, request_id: str, user: U
     model = CATALOG.get(kind)
     if model is None or not db.get(model, object_id):
         fail(404, 'NOT_FOUND', '基础资料不存在')
-    if set(body) != {'version', 'enabled'} or type(body['version']) is not int or type(body['enabled']) is not bool:
+    if not set(body)<={'version','enabled','name'} or 'version' not in body or len(body)<2 or type(body['version']) is not int or ('enabled' in body and type(body['enabled']) is not bool):
         fail(422, 'VALIDATION_ERROR', '需要版本及启停状态')
+    values={k:v for k,v in body.items() if k!='version'}
+    if 'name' in values:
+        if kind=='department_positions' or not isinstance(values['name'],str) or not values['name'].strip() or len(values['name'])>80:
+            fail(422,'VALIDATION_ERROR','名称无效；部门岗位关联不允许变更')
+        values['name']=values['name'].strip()
     if db.execute(update(model).where(model.id == object_id, model.version == body['version'])
-            .values(enabled=body['enabled'], version=body['version']+1)).rowcount != 1:
+            .values(**values, version=body['version']+1)).rowcount != 1:
         fail(409, 'VERSION_CONFLICT', '基础资料已变化，请刷新')
     audit(db, user, 'catalog.status', object_id, request_id)
     db.commit()

@@ -15,6 +15,12 @@ from app.repositories.access import current_task_file
 celery = Celery('talent', broker=BROKER_URL)
 celery.conf.update(task_acks_late=True, task_reject_on_worker_lost=True, worker_prefetch_multiplier=1, broker_connection_retry_on_startup=True, broker_connection_timeout=2, broker_transport_options={'visibility_timeout': 60, 'socket_connect_timeout': 2, 'socket_timeout': 2}, task_soft_time_limit=15, task_time_limit=20)
 
+
+@celery.task(name='talent.chat',soft_time_limit=3500,time_limit=3600)
+def chat(job_id: str,version: int):
+    from app.services.chat_jobs import execute
+    execute(job_id,version)
+
 def authorized(db, task: Task) -> bool:
     user = db.get(User, task.created_by)
     talent = db.get(Talent, task.talent_id)

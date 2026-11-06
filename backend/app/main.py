@@ -12,6 +12,8 @@ from app.services.business import audit
 from app.models.entities import User
 from app.api.routes import router
 from app.api.assessment_routes import router as assessment_router
+from app.api.chat_routes import router as chat_router
+from app.api.management_routes import router as management_router
 
 @asynccontextmanager
 async def lifespan(app):
@@ -22,6 +24,8 @@ async def lifespan(app):
 app = FastAPI(title='AI 数字化人才平台', lifespan=lifespan)
 app.include_router(router)
 app.include_router(assessment_router)
+app.include_router(chat_router)
+app.include_router(management_router)
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 @app.middleware('http')

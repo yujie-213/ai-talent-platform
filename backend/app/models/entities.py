@@ -52,6 +52,7 @@ class Role(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(80), unique=True)
     version: Mapped[int] = mapped_column(default=1)
+    enabled_menus: Mapped[list | None] = mapped_column(JSON)
 
 class UserRole(Base):
     __tablename__ = 'user_roles'
@@ -352,3 +353,7 @@ class AssessmentResult(Base):
     dimensions: Mapped[dict] = mapped_column(JSON)
     rules_version: Mapped[str] = mapped_column(String(40))
     created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+# 注册本阶段实体供迁移与隔离测试使用，不在启动时自动建表。
+from app.models import chat_entities  # noqa: E402,F401

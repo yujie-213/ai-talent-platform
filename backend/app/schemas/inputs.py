@@ -17,6 +17,7 @@ class UserUpdate(Input):
     enabled: bool
     role_ids: list[str] = Field(max_length=20)
     talent_id: str | None = None
+    department_id: str | None = None
 
 class Named(Input):
     name: str = Field(min_length=1, max_length=80)

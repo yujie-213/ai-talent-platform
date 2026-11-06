@@ -6,6 +6,11 @@ from app.services.resume_reader import ResumeError
 
 
 def generate_json(prompt: str, payload: dict | list) -> dict:
+    from app.services.ai_logging import recorded
+    return recorded(_generate_json,prompt,payload)
+
+
+def _generate_json(prompt: str, payload: dict | list) -> dict:
     """共享生成模型入口：配置、超时和安全错误不在业务模块复制。"""
     base = os.getenv('RESUME_LLM_BASE_URL', '').rstrip('/')
     model = os.getenv('RESUME_LLM_MODEL', '')
@@ -37,6 +42,11 @@ def extract_fields(segments: list[dict]) -> dict:
 
 
 def local_embeddings(texts: list[str]) -> list[list[float]]:
+    from app.services.ai_logging import recorded
+    return recorded(_local_embeddings,texts,model=os.getenv('EMBEDDING_MODEL','bge-m3'),operation='embedding')
+
+
+def _local_embeddings(texts: list[str]) -> list[list[float]]:
     try:
         with httpx.Client(timeout=90, trust_env=False) as client:
             base = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/')
@@ -63,6 +73,11 @@ def local_embeddings(texts: list[str]) -> list[list[float]]:
 
 
 def paddle_ocr(image: bytes) -> str:
+    from app.services.ai_logging import recorded
+    return recorded(_paddle_ocr,image,model='PP-OCRv5-mobile-cpu',operation='ocr')
+
+
+def _paddle_ocr(image: bytes) -> str:
     import tempfile
     import subprocess
     from pathlib import Path

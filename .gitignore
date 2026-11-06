@@ -19,3 +19,7 @@ data/
 .tools/
 coverage/
 test-results/
+
+# Public design-skill reference datasets; application data/ stays ignored.
+!/.agents/skills/ui-ux-pro-max/data/
+!/.agents/skills/ui-ux-pro-max/data/**

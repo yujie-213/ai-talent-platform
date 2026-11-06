@@ -1,3 +1,7 @@
+# UI 重构导航补充（2026-11-06）
+
+App.vue按日常工作/招聘成长/系统管理分组当前菜单和动作权限交集，桌面人才详情采用ProfileFacts.vue＋embedded ChatWorkspace双栏，收起AI保留会话；列表多人/筛选问答使用独立drawer。CandidateWorkspace保持真实分页与成功筛选快照，CandidateCard.vue/candidate.ts负责展示与多选事件；KeepAlive保留列表。AppIcon统一SVG，style.css统一tokens及Element Plus映射/中文系统字体/响应式/焦点。未改后端API及权限，不新增岗位聊天服务；功能入口和验证见ui-redesign.md。
+
 # 模块导航
 
 ## 第四阶段交付入口（待用户验收）

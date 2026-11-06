@@ -190,3 +190,7 @@ $env:PYTHONPATH = "$PWD/backend"
 验证入口：`.venv/Scripts/python -m pytest -q --tb=short`；真实隔离库`.venv/Scripts/python scripts/test-mysql.py`；合成真实模型`.venv/Scripts/python scripts/verify-chat-live.py`；真实恢复`.venv/Scripts/python scripts/verify-chat-recovery-live.py`；页面`npm --prefix frontend run test:chat-live`、`test:assessment-live`、`test:browser`。故障脚本只操作本项目并finally恢复，不要同时运行其他本项目故障脚本。精确结果、替身和未验证项以验证文档为准，样本/截图/报告仅在忽略data目录。
 
 真实DOCX来源链使用`.venv/Scripts/python scripts/verify-chat-file-live.py`，需要已安装的评测依赖`backend/requirements-evaluation.txt`；聊天页面脚本依次读取verify-chat-live与verify-chat-file-live生成的本机合成报告。真实管理写操作为`npm --prefix frontend run test:management-live`，新合成账号最终禁用解绑；`test:chat-late-response`仅注入网络延时，后端响应真实。浏览器工具已锁定Playwright1.65.0以兼容本机Edge原文件下载，更新已有前端依赖执行`npm --prefix frontend ci`，不重装或升级已有浏览器/后台服务。
+
+
+## UI重构试用（2026-11-06）
+当前分支codex/ui-ux-redesign，状态“UI整改待用户试用”。本机打开 http://127.0.0.1:5173，使用既有本机账号（data/local-access.txt，不入Git）；不需要重新seed或迁移。人才卡片→查看档案→右侧AI首次发送→核对来源→关闭回到原筛选。多人/筛选问答在列表旁打开，历史仍在“档案聊天”；岗位JD与匹配仍在同一需求表单。详细映射、命令、替身与限制见[UI重构记录](docs/ui-redesign.md)。

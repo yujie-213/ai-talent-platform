@@ -1,3 +1,16 @@
+# 当前交接：UI整改待用户试用
+
+2026-11-06：李玉杰要求按《AI人才平台_UI重构_Codex提示词》重构前端。从424723e完整第四阶段基线创建codex/ui-ux-redesign，未合并main、未进入第五阶段。项目级固定UI UX Pro Max 2.15.0安装/实际检索、导航分组、统一蓝色浅色tokens、独立人才卡片、完整资料阅读、档案旁可收起AI、列表范围侧栏、来源文案及全部既有页面统一样式已完成。本机5173直接刷新试用，API/Worker与数据库保持既有部署，无后端能力/接口/迁移变化。
+
+验证：前端类型/构建通过；新真实卡片→详情AI/具体答案/引用→返回保留条件/多选与1440/1366/800布局通过；完整聊天及文件下载、岗位JD/真实匹配、测评员工评分、管理绑定、三账号冒烟、真实合成导入再解析防覆盖通过；前端边界及任务分页明确使用合成API；定向独立SQLite33通过。未重跑完整后端/MySQL全套及故障强杀。详细命令、过程失败、截图口径、限制见docs/ui-redesign.md。状态仅“UI整改待用户试用”，不代替用户验收。
+
+关键入口：CandidateWorkspace→CandidateCard/candidate.ts；App双栏详情→ProfileFacts＋embedded ChatWorkspace；AppIcon与style.css统一视觉，Workbench真实授权快捷入口。完整筛选/requirement_id仍来自最近成功请求；AI按对象key隔离并保留原迟到响应屏障，详情读取新增序号屏障；普通简历显示来源，异常/旧结果及人工空值防覆盖保留。独立聊天历史仍可连接关闭详情前的原任务。
+
+Git：设计skill提交bbcf330，公开参考数据精确忽略例外c81b89e；最近UI代码HEAD为f89fb8b，文档最终HEAD通过git log查看。远端复用既有yujie-213/ai-talent-platform（用户先前决定公开），仅正常推送同名UI分支。所有真实数据、秘密、日志、截图仍忽略；没有未归属的他人修改。下一步由李玉杰试用并反馈，不自动进入第五阶段。
+
+---
+以下为第四阶段及更早历史记录。
+
 # 当前交接：第四阶段已部署，待用户验收
 
 最新审查修复从bdc0efa接手，仍在同一分支：repositories/candidate_filters.py为列表/聊天共用条件，current_scope重查requirement_id访问权；CandidateWorkspace保存最近成功筛选，完整传需求条件；ai/chat_answer.py受约束抽取已核验片段，archive_graph在事务外整理且返回前再鉴权，ChatWorkspace显示编号引用。新增tests/test_chat_review.py及真实API/Edge审查脚本。SQLite/MySQL各40通过，真实两人合成例和页面通过；无新增迁移/依赖/服务版本，API/项目后台已重载。旧缺失条件不回填，旧模板历史不覆盖；复核入口和限制见stage-four-review.md。最近修复代码HEAD为3c946fe，最后文档提交由git log核对，仍待负责人验收。

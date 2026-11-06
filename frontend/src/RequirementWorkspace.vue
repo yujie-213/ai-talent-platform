@@ -2,16 +2,18 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Api } from './api'
+import MatchWorkspace from './MatchWorkspace.vue'
 interface CatalogItem { id:string; name?:string; department_id?:string; position_id?:string }
 interface Draft {
   department_position_id:string; title:string; location:string; responsibilities:string; description:string; benefits:string
   salary:{mode:'range'|'negotiable';minimum:number|null;maximum:number|null;currency:string;period:string}|null
-  conditions:{required_skills:string[];preferred_skills:string[];minimum_education:string;minimum_experience_years:number|null}|null
+  conditions:{required_skills:string[];preferred_skills:string[];minimum_education:string;minimum_experience_years:number|null;skill_experience_years?:Record<string,number|undefined>}|null
   jd_text?:string
 }
 interface Suggestion {field:string;value:unknown;quote:string;source:'jd'|'proposal'}
 interface Requirement {id:string;status:string;version:number;active_version:number|null;draft:Draft;versions?:{number:number;snapshot:Draft;created_at:number}[]}
-const props = defineProps<{api:Api;canWrite:boolean;catalog:Record<string,CatalogItem[]>}>()
+const props = defineProps<{api:Api;canWrite:boolean;canTalentWrite?:boolean;catalog:Record<string,CatalogItem[]>}>()
+const emit=defineEmits<{open:[id:string];task:[id:string]}>()
 const items=ref<Requirement[]>([]), selected=ref<Requirement|null>(null), total=ref(0), currentPage=ref(1), busy=ref(false)
 const confirmed=ref(false), key=ref(crypto.randomUUID()), department=ref(''), required=ref(''), preferred=ref('')
 const draft=ref<Draft>(empty())
@@ -27,18 +29,18 @@ function touch(event:Event) {
   const field=target instanceof Element?target.closest('[data-jd-field]')?.getAttribute('data-jd-field'):null
   if(field)fieldRevisions[field]=(fieldRevisions[field]||0)+1
 }
-const fieldNames:Record<string,string>={title:'需求名称',location:'工作地点',salary:'薪资',responsibilities:'岗位职责',description:'任职要求',benefits:'福利','conditions.required_skills':'必备技能','conditions.preferred_skills':'加分技能','conditions.minimum_education':'最低学历','conditions.minimum_experience_years':'最低工作年限'}
+const fieldNames:Record<string,string>={title:'需求名称',location:'工作地点',salary:'薪资',responsibilities:'岗位职责',description:'任职要求',benefits:'福利','conditions.required_skills':'必备技能','conditions.preferred_skills':'加分技能','conditions.minimum_education':'最低学历','conditions.minimum_experience_years':'最低工作年限','conditions.skill_experience_years':'技能最低年限'}
 const states:Record<string,string>={draft:'草稿',active:'有效',disabled:'已停用'}
-function empty():Draft {return {department_position_id:'',title:'',location:'',responsibilities:'',description:'',benefits:'',jd_text:'',salary:{mode:'range',minimum:null,maximum:null,currency:'CNY',period:'month'},conditions:{required_skills:[],preferred_skills:[],minimum_education:'不限',minimum_experience_years:null}}}
+function empty():Draft {return {department_position_id:'',title:'',location:'',responsibilities:'',description:'',benefits:'',jd_text:'',salary:{mode:'range',minimum:null,maximum:null,currency:'CNY',period:'month'},conditions:{required_skills:[],preferred_skills:[],minimum_education:'不限',minimum_experience_years:null,skill_experience_years:{}}}}
 const positions=computed(()=>(props.catalog.department_positions||[]).filter(p=>p.department_id===department.value))
 function positionName(id?:string) {return props.catalog.positions?.find(p=>p.id===id)?.name||id}
 async function run(fn:()=>Promise<void>) {busy.value=true;try {await fn()} catch(e) {ElMessage.error((e as Error).message)} finally {busy.value=false}}
 async function load() {const data=await props.api<{items:Requirement[];total:number}>(`/requirements?offset=${(currentPage.value-1)*20}&limit=20`);items.value=data.items;total.value=data.total}
-function open(item:Requirement) {formGeneration++;suggestions.value=[];issues.value=[];selected.value=item;draft.value=JSON.parse(JSON.stringify(item.draft));draft.value.jd_text ||= ''; const dp=props.catalog.department_positions?.find(p=>p.id===item.draft.department_position_id); department.value=dp?.department_id||'';required.value=draft.value.conditions?.required_skills.join('、')||'';preferred.value=draft.value.conditions?.preferred_skills.join('、')||'';draft.value.salary ||= empty().salary; draft.value.conditions ||= empty().conditions;confirmed.value=false;baseline.value=formState()}
+function open(item:Requirement) {formGeneration++;suggestions.value=[];issues.value=[];selected.value=item;draft.value=JSON.parse(JSON.stringify(item.draft));draft.value.jd_text ||= ''; const dp=props.catalog.department_positions?.find(p=>p.id===item.draft.department_position_id); department.value=dp?.department_id||'';required.value=draft.value.conditions?.required_skills.join('、')||'';preferred.value=draft.value.conditions?.preferred_skills.join('、')||'';draft.value.salary ||= empty().salary; draft.value.conditions ||= empty().conditions;draft.value.conditions!.skill_experience_years ||= {};confirmed.value=false;baseline.value=formState()}
 function close() {formGeneration++;selected.value=null;if(pasteTimer)clearTimeout(pasteTimer)}
 function newItem() {open({id:'',status:'draft',version:1,active_version:null,draft:empty(),versions:[]});key.value=crypto.randomUUID()}
 async function view(item:Requirement) {await run(async()=>open(await props.api<Requirement>(`/requirements/${item.id}`)))}
-function body():Draft {const value=JSON.parse(JSON.stringify(draft.value)) as Draft; if(value.conditions) {value.conditions.required_skills=required.value.split(/[、,，\n]/).map(s=>s.trim()).filter(Boolean);value.conditions.preferred_skills=preferred.value.split(/[、,，\n]/).map(s=>s.trim()).filter(Boolean)} if(value.salary?.mode==='negotiable') {value.salary.minimum=null;value.salary.maximum=null} else if(value.salary?.minimum==null&&value.salary?.maximum==null)value.salary=null;return value}
+function body():Draft {const value=JSON.parse(JSON.stringify(draft.value)) as Draft; if(value.conditions) {value.conditions.required_skills=required.value.split(/[、,，\n]/).map(s=>s.trim()).filter(Boolean);value.conditions.preferred_skills=preferred.value.split(/[、,，\n]/).map(s=>s.trim()).filter(Boolean);value.conditions.skill_experience_years=Object.fromEntries(Object.entries(value.conditions.skill_experience_years||{}).filter(([k,v])=>value.conditions!.required_skills.includes(k)&&v!=null))} if(value.salary?.mode==='negotiable') {value.salary.minimum=null;value.salary.maximum=null} else if(value.salary?.minimum==null&&value.salary?.maximum==null)value.salary=null;return value}
 function fieldValue(value:Draft, field:string):unknown {if(field.startsWith('conditions.'))return value.conditions?.[field.split('.')[1] as keyof NonNullable<Draft['conditions']>];return value[field as keyof Draft]}
 function display(value:unknown) {if(value==null)return '未填写';if(Array.isArray(value))return value.join('、');if(typeof value==='object')return JSON.stringify(value);return String(value)}
 function apply(s:Suggestion) {
@@ -80,8 +82,8 @@ onBeforeUnmount(()=>{formGeneration++;if(pasteTimer)clearTimeout(pasteTimer)})
 </script>
 
 <template>
-  <div class="title-row"><div><p class="eyebrow">RECRUITMENT</p><h1>岗位需求</h1><p class="muted">草稿可暂存；确认生效后保存独立版本。匹配功能正在开发。</p></div><el-button v-if="canWrite" type="primary" @click="newItem">新建需求</el-button></div>
-  <el-card v-loading="busy"><el-table :data="items" @row-click="view"><el-table-column label="名称"><template #default="s">{{s.row.draft.title||'未命名草稿'}}</template></el-table-column><el-table-column label="状态"><template #default="s">{{states[s.row.status]}}</template></el-table-column><el-table-column prop="active_version" label="有效版本"/><el-table-column prop="version" label="编辑版本"/></el-table><el-empty v-if="!items.length" description="当前授权范围暂无岗位需求"/><el-pagination v-model:current-page="currentPage" :total="total" :page-size="20" layout="prev,pager,next" @current-change="()=>run(load)"/></el-card>
+  <div class="title-row"><div><p class="eyebrow">RECRUITMENT</p><h1>岗位需求</h1><p class="muted">草稿可暂存；确认生效后保存独立版本。使用已生效版本手动匹配，保留范围、证据与历史。</p></div><el-button v-if="canWrite" type="primary" @click="newItem">新建需求</el-button></div>
+  <el-card v-loading="busy"><el-table :data="items" @row-click="view"><el-table-column label="名称"><template #default="s">{{s.row.draft.title||'未命名草稿'}}</template></el-table-column><el-table-column label="部门"><template #default="s">{{catalog.departments.find(d=>d.id===s.row.department_id)?.name||'—'}}</template></el-table-column><el-table-column label="公司岗位"><template #default="s">{{positionName(catalog.department_positions.find(p=>p.id===s.row.draft.department_position_id)?.position_id)}}</template></el-table-column><el-table-column label="状态"><template #default="s">{{states[s.row.status]}}</template></el-table-column><el-table-column prop="active_version" label="有效版本"/><el-table-column prop="version" label="编辑版本"/></el-table><el-empty v-if="!items.length" description="当前授权范围暂无岗位需求"/><el-pagination v-model:current-page="currentPage" :total="total" :page-size="20" layout="prev,pager,next" @current-change="()=>run(load)"/></el-card>
   <el-dialog :model-value="!!selected" title="岗位需求与版本" width="800px" @close="close" :close-on-click-modal="false">
     <template v-if="selected">
       <el-alert type="info" :closable="false" title="编辑表单后先保存草稿，再确认生效。未生效草稿不会改变原有效版本。"/>
@@ -97,12 +99,13 @@ onBeforeUnmount(()=>{formGeneration++;if(pasteTimer)clearTimeout(pasteTimer)})
         <template v-if="draft.salary"><el-form-item label="薪资" data-jd-field="salary"><el-select v-model="draft.salary.mode"><el-option label="明确区间" value="range"/><el-option label="面议" value="negotiable"/></el-select><template v-if="draft.salary.mode==='range'"><el-input-number v-model="draft.salary.minimum" :min="0" placeholder="下限"/><el-input-number v-model="draft.salary.maximum" :min="0" placeholder="上限"/><el-select v-model="draft.salary.currency"><el-option v-for="c in ['CNY','USD','EUR']" :key="c" :value="c"/></el-select><el-select v-model="draft.salary.period"><el-option label="月薪" value="month"/><el-option label="年薪" value="year"/><el-option label="时薪" value="hour"/></el-select></template></el-form-item></template>
         <el-form-item label="岗位职责" data-jd-field="responsibilities"><el-input v-model="draft.responsibilities" type="textarea" :rows="3" maxlength="12000"/></el-form-item>
         <el-form-item label="任职要求正文" data-jd-field="description"><el-input v-model="draft.description" type="textarea" :rows="3" maxlength="12000"/></el-form-item>
-        <template v-if="draft.conditions"><el-form-item label="必备技能（顿号或逗号分隔，留空表示无技能限制）"><el-input v-model="required"/></el-form-item><el-form-item label="加分技能（不作为硬性淘汰依据）"><el-input v-model="preferred"/></el-form-item><el-form-item label="最低学历"><el-select v-model="draft.conditions.minimum_education"><el-option v-for="e in ['不限','高中','大专','本科','硕士','博士']" :key="e" :value="e"/></el-select></el-form-item><el-form-item label="最低工作年限（清空表示不限，不从技能出现次数推算）"><el-input-number v-model="draft.conditions.minimum_experience_years" :min="0" :max="60"/></el-form-item></template>
+        <template v-if="draft.conditions"><el-form-item label="必备技能（顿号或逗号分隔，留空表示无技能限制）"><el-input v-model="required"/></el-form-item><el-form-item label="加分技能（不作为硬性淘汰依据）"><el-input v-model="preferred"/></el-form-item><template v-if="draft.conditions.skill_experience_years"><el-form-item v-for="s in required.split(/[、,，\n]/).map(v=>v.trim()).filter(Boolean)" :key="s" :label="`${s}最低经验年限（清空表示不限定，不等同总工作年限）`"><el-input-number v-model="draft.conditions.skill_experience_years[s]" :min="0" :max="60"/></el-form-item></template><el-form-item label="最低学历"><el-select v-model="draft.conditions.minimum_education"><el-option v-for="e in ['不限','高中','大专','本科','硕士','博士']" :key="e" :value="e"/></el-select></el-form-item><el-form-item label="最低工作年限（清空表示不限，不从技能出现次数推算）"><el-input-number v-model="draft.conditions.minimum_experience_years" :min="0" :max="60"/></el-form-item></template>
         <el-form-item label="福利（可不填）" data-jd-field="benefits"><el-input v-model="draft.benefits" type="textarea" maxlength="4000"/></el-form-item>
       </el-form>
       <p v-if="dirty" class="muted">表单有未保存修改，请先保存草稿。</p>
       <el-checkbox v-if="canWrite&&selected.id" v-model="confirmed" :disabled="dirty">我已核对已保存草稿，确认正文与必备/加分、学历及年限条件一致</el-checkbox>
       <div class="title-row"><el-button v-if="canWrite" :loading="busy" @click="save">保存草稿</el-button><el-button v-if="canWrite&&selected.id" type="primary" :disabled="!confirmed||busy||dirty" @click="transition(true)">确认生效为新版本</el-button><el-button v-if="canWrite&&selected.status==='active'" :disabled="busy||dirty" @click="transition(false)">停用需求</el-button><el-button v-if="selected.id" @click="view(selected)">刷新已保存内容</el-button></div>
+      <MatchWorkspace v-if="selected.id" :key="selected.id" :api="api" :requirement-id="selected.id" :version="selected.version" :active-version="selected.active_version" :status="selected.status" :can-run="canWrite" :can-associate="canWrite && !!canTalentWrite" @open="id=>{close();emit('open',id)}" @task="id=>{close();emit('task',id)}"/>
       <h3>有效版本历史</h3><el-empty v-if="!selected.versions?.length" description="尚无有效版本"/><el-collapse><el-collapse-item v-for="v in selected.versions" :key="v.number" :title="`版本 ${v.number} · ${new Date(v.created_at*1000).toLocaleString()}`"><p>{{v.snapshot.title}} · {{v.snapshot.location}}</p><p>{{v.snapshot.responsibilities}}</p><p>{{v.snapshot.description}}</p><pre>{{JSON.stringify(v.snapshot,null,2)}}</pre></el-collapse-item></el-collapse>
     </template>
   </el-dialog>

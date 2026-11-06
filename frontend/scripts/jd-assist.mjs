@@ -21,6 +21,7 @@ await page.route('**/api/**',async route=>{
     data=await new Promise(resolve=>{pending=resolve})
   }
   else if(path==='/api/requirements')data={items:[item],total:1}
+  else if(path==='/api/requirements/synthetic-jd/matches')data={items:[],total:0}
   else if(path==='/api/requirements/synthetic-jd') {
     if(route.request().method()==='PUT') {saved=route.request().postDataJSON();item.draft=saved;item.version++}
     data=item

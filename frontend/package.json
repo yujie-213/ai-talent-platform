@@ -9,6 +9,7 @@
     "test:browser": "node scripts/smoke.mjs",
     "test:task-pagination": "node scripts/task-pagination.mjs",
     "test:jd-assist": "node scripts/jd-assist.mjs",
+    "test:stage-three-live": "node scripts/stage-three-live.mjs",
     "test:resume-live": "node scripts/resume-live.mjs"
   },
   "dependencies": {

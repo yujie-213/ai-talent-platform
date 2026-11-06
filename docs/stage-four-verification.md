@@ -19,6 +19,7 @@
 | `.venv/Scripts/python scripts/test-mysql.py tests/test_assessments.py tests/test_stage_four_management.py` | 6 passed /43.03秒，含两条迁移及唯一成绩并发 |
 | `.venv/Scripts/python -m pytest -q --tb=short` | 147 passed /290.09秒；之后增加两项测评测试及停用归属检查，另见下一项 |
 | `.venv/Scripts/python -m pytest -q tests/test_assessments.py tests/test_stage_four_management.py tests/test_requirements.py --tb=short` | 最新14 passed /62.60秒，含撤权/禁用、试卷新版本、隔离库迁移升降级及第三阶段需求回归 |
+| `.venv/Scripts/python scripts/test-mysql.py` | 最终149 passed /626.53秒，真实随机独立MySQL完整回归，含最新两项测评测试和基础资料校验 |
 | `npm --prefix frontend run build` | 类型及生产构建通过；保留原有大包提示 |
 | `node frontend/scripts/assessment-live.mjs`（实际cwd=frontend，命令`node scripts/assessment-live.mjs`） | 真实Edge→API→MySQL，无API/评分替身；HR页面题库创建、发布、分配，员工草稿、提交并得到10/10，标准答案隔离，管理员无业务入口，角色页面通过 |
 | `npm --prefix frontend run test:browser` | 三账号真实Edge/实际API/MySQL/上传/Worker机制任务通过，无OCR或模型效果宣称 |
@@ -48,3 +49,7 @@ LangGraph仅做Windows兼容性预检：`pip index versions langgraph`、`pip in
 6. 管理员基础资料停用某对象，已有归属保留；停用对象不可用于新建归属。启停及权限编辑陈旧版本应冲突。
 
 这些步骤仅核验已实现子项，不等于负责人对第四阶段整体验收。
+
+
+## 当前提交与部署
+代码提交821aeef，已正常推送origin/codex/stage-four-chat-assessment，未合并main。最终API已重载并健康检查通过，页面5173保留。原有Worker/dispatcher/indexer正常重载，其他服务未动。最后文档提交通过git log核对；当前整体状态仍进行中，统一聊天及未完成管理范围不得视为交付。

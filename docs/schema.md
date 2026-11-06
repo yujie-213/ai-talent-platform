@@ -46,3 +46,6 @@ talent_field_states同表扩展使用education/experience/project/skill/certific
 
 ## 第三阶段首批：招聘需求（2026-11-06）
 增量迁移f084aa25c006新增recruitment_requirements（部门、部门岗位、创建人、draft JSON、status、编辑version、active_version、时间）及requirement_versions（需求FK、number、snapshot JSON、确认人、时间）。需求号+有效版本号唯一。部门岗位在业务上不可更换；部门单列供当前授权过滤，创建时从部门岗位取得。完整草稿采用有严格schema的JSON，后续匹配使用确认快照，不能直接读取未生效草稿。该表不是任意工作流定义。历史版本只追加，所有业务更新由编辑version条件控制。开发库未应用，测试库已验证迁移。
+
+
+S3-02在draft/snapshot JSON契约增加jd_text（最多20000字符）；旧记录缺省空串，不回写历史快照、不新增DDL。建议临时返回，不自动修改已保存版本，采纳后经现有草稿保存/确认生效。

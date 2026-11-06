@@ -60,3 +60,6 @@ Idempotency-Key 最长 128 字符，按账号+动作+key 唯一；摘要覆盖�
 - POST /api/requirements/{id}/activate：{version,confirmed:true}；验证必填、追加独立快照并切换有效版本，不自动创建匹配。
 - POST /api/requirements/{id}/disable：{version}，只允许当前有效状态，保留历史。
 新增requirement.read/write独立动作，global或department范围；管理员不默认授权。新建及变更同时要求目标需求读写权限，不从人才权限借权。字段、示例、部署和剩余范围见stage-three.md。本批尚无JD辅助与匹配接口。
+
+
+S3-02：POST /api/requirements/assist接受{mode:extract|improve,draft,requirement_id?,version?}，已保存需求必须同时传ID/版本。draft新增可选jd_text（≤20000）。返回{suggestions:[{field,value,quote,source:jd|proposal}],issues,mode,version}；仅建议，不保存。前后两次当前鉴权/版本校验；模型不可用503安全错误，手工流程继续。详细字段白名单和校验限度见stage-three.md。

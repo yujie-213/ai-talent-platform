@@ -130,3 +130,6 @@ npm --prefix frontend run build
 第二阶段已验收，第三阶段已授权并启动。首批为岗位需求人工表单、草稿/有效版本/停用、部门授权及历史快照；JD辅助和全范围匹配仍未实现。执行清单、接口、授权与部署步骤见docs/stage-three.md；当前未将新增迁移应用开发库，现有服务继续按第二阶段运行。没有新模型、依赖升级或数据重置。
 
 首批定向验证：`.venv/Scripts/python.exe -m pytest -q tests/test_requirements.py --tb=short -p no:cacheprovider`；真实隔离MySQL：`.venv/Scripts/python.exe scripts/test-mysql.py tests/test_requirements.py`；前端：`npm --prefix frontend run build`。定向测试验证真实API和数据库业务，不调用JD/匹配模型。
+
+
+第三阶段S3-02已接JD辅助：岗位需求同一表单粘贴纯文本，自动提取、冲突核对或AI完善；原文保存、模型失败可手工继续。API/权限/部署前提仍见docs/stage-three.md（当前开发库未部署第三阶段）。`npm --prefix frontend run test:jd-assist`需独立前端5175，使用真实Edge+合成API；`.venv/Scripts/python.exe scripts/evaluate-jd.py`真实调用已配置模型评测两份合成JD，报告保存在忽略的data目录。完整样本目前有任职要求正文漏抽，不宣称整体准确率。

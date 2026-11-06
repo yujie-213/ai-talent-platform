@@ -2,12 +2,13 @@
 
 2026-11-06（北京时间）。第二阶段已获李玉杰确认验收，第三阶段已明确授权启动。
 
-- 分支 codex/stage-three-requirements，基线872664d（远端第二阶段验收记录）；本批代码HEAD 8d05941；最后文档提交以git log为准。同步采用fast-forward，未合并main，未改写他人记录。
+- 分支 codex/stage-three-requirements，基线872664d（远端第二阶段验收记录）；当前代码HEAD c57c15a（S3-01为8d05941）；最后文档提交以git log为准。同步采用fast-forward，未合并main，未改写他人记录。
 - 本批：schemas/requirements.py定义薪资/结构化条件；services/requirements.py处理权限、幂等、原子版本及状态；entities.py和f084aa25c006新增需求/版本表；api/routes.py提供6个接口；RequirementWorkspace.vue提供人工单表单和历史；application.set_grants增加独立需求动作范围校验。
 - 迁移仅在隔离测试库验证；开发库及现有服务未重载，未自动给账号扩权。部署与授权步骤、详细验证/限制见stage-three.md。前端现有默认入口不变，有requirement.read后出现岗位需求。
 - 验证：完整SQLite50 passed /156.83秒；补充权限用例后定向SQLite5 passed /21.62秒、真实隔离MySQL5 passed /35.41秒；前端类型/生产构建通过。MySQL回滚索引依赖缺陷已修复并重跑；真实页面与JD/匹配未验证。
 - 新增文件均为源代码、合成测试或文档，未提交原文件/.env/本机数据。收尾提交和远端同步结果见本轮最终汇报。
-- 下一步按stage-three.md推进S3-02 JD辅助及S3-03~06匹配、证据和实际集成验证；第三阶段保持进行中。不能把首批需求基础当成整个阶段已完成，也不等待新的启动授权或进入第四阶段。
+- 本轮S3-02已实现JD辅助：services/jd_assist.py、schemas/requirements.JDAssist、POST /requirements/assist；generate_json共享模型入口；RequirementWorkspace负责粘贴/安全合并/冲突采纳；tests/test_jd_assist.py、frontend/scripts/jd-assist.mjs和scripts/evaluate-jd.py分别覆盖数据库业务、真实Edge合成API交互与真实生成模型。原文jd_text进入草稿JSON，无新迁移。独立5175测试前端已关闭；开发库及原服务未改动。完整SQLite59通过、定向SQLite/MySQL各13通过，真实完整JD漏description，限制详见stage-three.md。
+- 下一步按stage-three.md推进S3-03~06匹配、证据和实际集成验证；第三阶段保持进行中。不能把首批需求基础当成整个阶段已完成，也不等待新的启动授权或进入第四阶段。
 - 第二阶段暂缓UI/标签优化决定仍有效，人工确认空值与事实保护不得退化。历史任务/文件归属及索引调度修复作为回归基线。
 
 ---

@@ -12,21 +12,15 @@ def summary(db: Session, user: User) -> dict:
     parse = dict(db.execute(select(Task.state, func.count()).where(Task.talent_id.in_(ids), Task.kind == 'resume_parse').group_by(Task.state)).all())
     matches = dict(db.execute(select(MatchEntry.state, func.count()).where(MatchEntry.talent_id.in_(ids),
         MatchEntry.run_id.in_(select(MatchRun.id).where(MatchRun.created_by == user.id))).group_by(MatchEntry.state)).all())
-    from app.services.assessments import listing
-    assessments = {}
-    from app.models.chat_entities import ChatJob,ChatMessage,Conversation
-    from app.services.archive_chat import get_conversation
+    from app.services.assessments import visible_assignment_clause
+    assessments = dict(db.execute(select(AssessmentAssignment.state, func.count()).where(
+        visible_assignment_clause(db,user)).group_by(AssessmentAssignment.state)).all())
+    from app.models.chat_entities import ChatJob,ChatMessage
+    from app.repositories.chat_access import visible_conversations
     from fastapi import HTTPException
-    chat={}
-    for job,conv in db.execute(select(ChatJob,Conversation).join(ChatMessage,ChatMessage.id==ChatJob.message_id)
-            .join(Conversation,Conversation.id==ChatMessage.conversation_id).where(Conversation.user_id==user.id)):
-        try:get_conversation(db,user,conv.id)
-        except HTTPException:continue
-        chat[job.state]=chat.get(job.state,0)+1
-    # 与测评列表共用当前绑定、测评read及人才read判据，不用管理员身份扩大。
-    page = listing(db, user, 0, 0)
-    for obj in listing(db, user, 0, page['total'])['items']:
-        assessments[obj['state']] = assessments.get(obj['state'], 0) + 1
+    visible_cids = [conv.id for conv in visible_conversations(db,user)]
+    chat = dict(db.execute(select(ChatJob.state,func.count()).join(ChatMessage,ChatMessage.id==ChatJob.message_id)
+        .where(ChatMessage.conversation_id.in_(visible_cids)).group_by(ChatJob.state)).all())
     from app.services import requirements, match_tasks
     requirement_scope = requirements.scope(db, user, 'requirement.read')
     requirement_states = dict(db.execute(select(RecruitmentRequirement.status, func.count())

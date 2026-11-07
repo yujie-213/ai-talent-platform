@@ -13,7 +13,7 @@ from app.core.db import Session
 from app.models.entities import Outbox
 from app.tasks.worker import execute, finish
 
-COMPOSE = ['docker', 'compose', '--env-file', '.env', '-f', 'infra/compose.yml', '-f', 'infra/compose.stage2.yml']
+COMPOSE = ['docker', 'compose', '--env-file', '.env', '-f', 'infra/compose.yml', '-f', 'infra/compose.stage2.yml', '-f', 'infra/compose.stage4.yml']
 def compose(*args):
     subprocess.run([*COMPOSE, *args], check=True, stdout=subprocess.DEVNULL)
 
@@ -76,7 +76,7 @@ try:
     wait(delayed['id'],{'running'})
     compose('kill','-s','SIGKILL','worker')
 finally:
-    compose('up','-d','worker')
+    compose('start','worker')
 result=wait(delayed['id'],{'succeeded','failed'})
 assert result['state']=='succeeded' and result['run_version']==2
 assert any(a['run_version']==1 and a['state']=='expired' for a in result['attempts'])

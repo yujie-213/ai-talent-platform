@@ -52,13 +52,22 @@ def seed(password: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['bootstrap', 'seed-demo', 'dispatch', 'recover', 'dispatcher', 'index', 'indexer'])
+    parser.add_argument('command', choices=['bootstrap', 'seed-demo', 'dispatch', 'recover', 'dispatcher', 'index', 'indexer', 'index-cleanup'])
     parser.add_argument('--username', default='admin')
+    parser.add_argument('--after', default='', help='旧向量清理的上一批游标')
+    parser.add_argument('--limit', type=int, default=100)
     args = parser.parse_args()
     if args.command == 'bootstrap':
         bootstrap(args.username, os.getenv('BOOTSTRAP_PASSWORD') or getpass.getpass('本机管理员密码: '))
     elif args.command == 'seed-demo':
         seed(os.getenv('DEMO_PASSWORD') or getpass.getpass('合成测试账号密码: '))
+    elif args.command == 'index-cleanup':
+        import json
+        from app.services.resume_index import cleanup_old_indexes
+        report = cleanup_old_indexes(args.limit, args.after)
+        print(json.dumps(report, ensure_ascii=True))
+        if report['failed_profiles']:
+            raise SystemExit(1)
     elif args.command in ['index', 'indexer']:
         from app.services.resume_index import compensate_indexes, enqueue_missing_indexes
         from sqlalchemy.exc import SQLAlchemyError

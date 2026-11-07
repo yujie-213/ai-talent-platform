@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 sys.path.insert(0,str(Path('backend').resolve()))
 from app.tasks.worker import parse
-compose=['docker','compose','--env-file','.env','-f','infra/compose.yml','-f','infra/compose.stage2.yml']
+compose=['docker','compose','--env-file','.env','-f','infra/compose.yml','-f','infra/compose.stage2.yml','-f','infra/compose.stage4.yml']
 password=next(line.split(': ',1)[1] for line in Path('data/local-access.txt').read_text(encoding='utf-8').splitlines() if line.startswith('demo.hr /'))
 client=httpx.Client(base_url='http://127.0.0.1:8000/api',timeout=20)
 def call(method,path,body=None,**kwargs):
@@ -30,7 +30,7 @@ else: raise AssertionError('任务没有启动')
 try:
     subprocess.run([*compose,'kill','-s','SIGKILL','worker'],check=True,stdout=subprocess.DEVNULL)
 finally:
-    subprocess.run([*compose,'up','-d','--no-deps','worker'],check=True,stdout=subprocess.DEVNULL)
+    subprocess.run([*compose,'start','worker'],check=True,stdout=subprocess.DEVNULL)
 deadline=time.monotonic()+180
 while time.monotonic()<deadline:
     state=call('GET',f"/tasks/{task['id']}")

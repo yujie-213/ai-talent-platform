@@ -2,6 +2,7 @@ import hashlib
 import json
 import time
 from sqlalchemy import select, update, delete
+from sqlalchemy.exc import IntegrityError
 from app.models.entities import Talent, Fact, TalentHistory, Idempotency, Audit, DepartmentPosition, User, Department, Pool, IndexEvent
 from app.core.security import fail, allowed
 from app.models.entities import TalentFieldState
@@ -30,6 +31,23 @@ def existing(db, user, action: str, key: str, payload, lock: bool = False) -> st
 
 def remember(db, user, action: str, key: str, payload, resource_id: str):
     db.add(Idempotency(user_id=user.id, action=action, key=key, request_hash=digest(payload), resource_id=resource_id))
+
+
+def commit_or_replay(db, user, action: str, key: str, payload) -> str | None:
+    """并发首次请求可能都未查到幂等记录；唯一约束获胜后，败方回滚并取原成果。
+
+    必须结束原事务后再查，避免MySQL重复读快照仍看不到另一请求的提交。
+    非幂等唯一约束冲突仍按原异常处理，不把所有约束错误当成成功。
+    """
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        previous = existing(db, user, action, key, payload)
+        if previous:
+            return previous
+        raise
+    return None
 
 def validate_talent(db, values: dict):
     if values['kind'] == 'external' and (values.get('department_id') or values.get('department_position_id')):

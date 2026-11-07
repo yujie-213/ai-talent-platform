@@ -1,6 +1,6 @@
 """确定性测评业务。最终答题先提交，评分失败不要求员工重交。"""
 import time
-from sqlalchemy import select, update, or_
+from sqlalchemy import select, update, or_, and_, func
 from sqlalchemy.exc import IntegrityError
 from app.models.entities import (AssessmentQuestion as Question, AssessmentPaper as Paper,
     AssessmentPaperVersion as PaperVersion, AssessmentAssignment as Assignment,
@@ -128,22 +128,25 @@ def access(db, user, assignment_id, own=False):
     return obj
 
 
+def visible_assignment_clause(db, user):
+    # 本人任务仍须当前绑定和人才读权；其他历史同时需要测评读权。
+    return and_(Assignment.talent_id.in_(select(Talent.id).where(scope_clause(db,user,'talent.read'))),
+        or_(and_(Assignment.employee_id == user.id, Assignment.talent_id == user.talent_id),
+            Assignment.talent_id.in_(select(Talent.id).where(scope_clause(db,user,'assessment.read')))))
+
+
 def listing(db, user, offset, limit, talent_id=None):
-    clause = or_(Assignment.employee_id == user.id,
-        Assignment.talent_id.in_(select(Talent.id).where(scope_clause(db, user, 'assessment.read'))))
-    query = select(Assignment).where(clause).order_by(Assignment.created_at.desc(), Assignment.id)
+    clause = visible_assignment_clause(db, user)
     if talent_id:
-        query = query.where(Assignment.talent_id == talent_id)
-    items = []
-    for obj in db.scalars(query):
-        t = db.get(Talent, obj.talent_id)
-        own = obj.employee_id == user.id and user.talent_id == obj.talent_id
-        if allowed(db, user, 'talent.read', t) and (own or allowed(db, user, 'assessment.read', t)):
-            v = db.get(PaperVersion, obj.paper_version_id)
-            items.append({'id': obj.id, 'talent_id': t.id, 'name': t.name, 'title': v.snapshot['title'],
-                'paper_number': v.number, 'state': obj.state, 'version': obj.version,
-                'created_at': obj.created_at})
-    return {'items': items[offset:offset+limit], 'total': len(items)}
+        clause = and_(clause, Assignment.talent_id == talent_id)
+    total = db.scalar(select(func.count()).select_from(Assignment).where(clause))
+    query = select(Assignment, Talent, PaperVersion).join(Talent, Talent.id == Assignment.talent_id)
+    query = query.join(PaperVersion, PaperVersion.id == Assignment.paper_version_id).where(clause)
+    query = query.order_by(Assignment.created_at.desc(), Assignment.id).offset(offset).limit(limit)
+    items = [{'id':obj.id,'talent_id':t.id,'name':t.name,'title':v.snapshot['title'],
+        'paper_number':v.number,'state':obj.state,'version':obj.version,'created_at':obj.created_at}
+        for obj,t,v in db.execute(query)]
+    return {'items':items,'total':total}
 
 
 def detail(db, user, assignment_id):

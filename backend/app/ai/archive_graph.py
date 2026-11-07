@@ -99,7 +99,7 @@ def identify(state:State):
             plan=Plan(intent='clarify',clarification='请确认学历是“本科”还是“本科及以上”，年限是“以上（包含）”还是“超过（不包含）”。')
     if not payload['scope']['size'] and not plan.expand:
         plan=Plan(intent='clarify',clarification='当前范围为空。请勾选人才，或明确要求查询全部授权范围；不会自动扩大。')
-    elif payload['scope']['size']>1 and re.search(r'他(?!们|俩)|她(?!们|俩)|这位|此人',question) and not confirmed:
+    elif payload['scope']['size']>1 and re.search(r'(?<!其)他(?!们|俩)|她(?!们|俩)|这位|此人',question) and not confirmed:
         plan=Plan(intent='clarify',clarification='当前范围包含多位人才，“他/她”指哪一位？请在档案中打开该人，或勾选明确对象后提问。')
     elif plan.intent=='compare' and payload['scope']['size']<2:
         plan=Plan(intent='clarify',clarification='多人比较需要至少两位明确人才，请勾选比较对象。')

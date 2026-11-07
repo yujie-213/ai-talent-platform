@@ -15,6 +15,38 @@ from app.services.resume_reader import ResumeError
 COLLECTION = 'ai_talent_resume_bge_m3_v1'
 
 
+def cleanup_old_indexes(limit: int = 100, after: str = '', talent_ids: list[str] | None = None) -> dict:
+    """本机维护入口：只删权威库中已过时的向量，不删除当前版本或业务资料。
+
+    使用读取时的版本下界；清理期间档案继续更新也不会扩大到当时的当前版本。
+    通过游标分批，失败可从原游标重跑；调用方不应将失败当成已清理。
+    """
+    with Session() as db:
+        query = select(Talent.id, Talent.version).where(Talent.id > after,
+            select(IndexEvent.id).where(IndexEvent.talent_id == Talent.id,
+                IndexEvent.version < Talent.version).exists()).order_by(Talent.id).limit(max(1, min(limit, 1000)))
+        if talent_ids is not None:
+            query = query.where(Talent.id.in_(talent_ids))
+        candidates = list(db.execute(query))
+    cleaned, failed = 0, 0
+    with httpx.Client(base_url=os.getenv('MILVUS_URL', 'http://127.0.0.1:19530'),
+                      timeout=60, trust_env=False) as client:
+        for talent_id, version in candidates:
+            try:
+                response = client.post('/v2/vectordb/entities/delete', json={
+                    'collectionName': COLLECTION,
+                    'filter': f'talent_id == {json.dumps(talent_id)} and profile_version < {int(version)}'})
+                response.raise_for_status()
+                result = response.json()
+                if not isinstance(result, dict) or result.get('code') != 0:
+                    raise ResumeError('MILVUS_WRITE_FAILED')
+                cleaned += 1
+            except (httpx.HTTPError, ValueError, ResumeError):
+                failed += 1
+    return {'examined': len(candidates), 'cleaned_profiles': cleaned, 'failed_profiles': failed,
+            'next_after': candidates[-1][0] if candidates else after}
+
+
 def enqueue_missing_indexes() -> None:
     """为阶段一既有档案补齐当前版本事件，不重置任何现有索引或业务数据。"""
     try:

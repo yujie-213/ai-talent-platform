@@ -72,7 +72,7 @@ call('PUT',f"/requirements/{req['id']}/talents/{fixtures['declared']['id']}",{'t
 linked=call('GET','/candidates?requirement_id='+req['id'])
 assert any(t['id']==fixtures['declared']['id'] and t['requirements'][0]['score'] is not None for t in linked['items'])
 print('Real matching: external full filtered scope=5, internal scope=6, exact groups, evidence, association and actual dense/BM25/RRF scores passed',flush=True)
-compose=['docker','compose','--env-file','.env','-f','infra/compose.yml','-f','infra/compose.stage2.yml']
+compose=['docker','compose','--env-file','.env','-f','infra/compose.yml','-f','infra/compose.stage2.yml','-f','infra/compose.stage4.yml']
 def control(*args):subprocess.run([*compose,*args],check=True,stdout=subprocess.DEVNULL)
 # 真实Broker故障：API同事务记录保持，投递失败后可补发。
 try:
@@ -83,7 +83,7 @@ try:
         outbox=db.scalar(select(MatchOutbox).where(MatchOutbox.run_id==broker_run['id']))
         assert outbox and outbox.published_at is None
 finally:
-    control('up','-d','--no-deps','redis')
+    control('start','redis')
 wait(broker_run)
 print('Real Redis outage and persistent outbox compensation passed',flush=True)
 # 真正强杀正在运行的匹配Worker，不注入人为业务等待或测试成功路径。
@@ -98,7 +98,7 @@ else:raise AssertionError('真实Worker没有启动匹配')
 try:
     control('kill','-s','SIGKILL','worker')
 finally:
-    control('up','-d','--no-deps','worker')
+    control('start','worker')
 recovered=wait(crash,300)
 assert recovered['run_version']==2 and any(a['state']=='expired' for a in recovered['attempts'])
 assert not finish(crash['id'],1)

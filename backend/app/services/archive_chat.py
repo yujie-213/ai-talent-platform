@@ -39,15 +39,9 @@ def create(db,user,body:Scope,key,request_id):
 
 
 def listing(db,user,offset,limit):
-    from app.core.security import grants
-    if not grants(db,user,'chat.use'):return {'items':[],'total':0}
-    visible=[]
-    for conv in db.scalars(select(Conversation).where(Conversation.user_id==user.id).order_by(Conversation.created_at.desc(),Conversation.id)):
-        try:
-            current_scope(db,user,conv.scope)
-        except HTTPException:
-            continue
-        visible.append({'id':conv.id,'scope':conv.scope,'version':conv.version,'created_at':conv.created_at})
+    from app.repositories.chat_access import visible_conversations
+    visible=[{'id':conv.id,'scope':conv.scope,'version':conv.version,'created_at':conv.created_at}
+        for conv in visible_conversations(db,user)]
     return {'items':visible[offset:offset+limit],'total':len(visible)}
 
 

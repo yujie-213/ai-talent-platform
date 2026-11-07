@@ -5,7 +5,7 @@ from app.repositories.access import talent_page, talent_facts, talent_history, t
 from app.core.security import require, token, verify_password, hash_password, talent_access, scope_clause, fail
 from app.models.entities import *
 from app.schemas.inputs import *
-from app.services.business import row, audit, existing, remember, save_talent
+from app.services.business import row, audit, existing, remember, save_talent, commit_or_replay
 from app.services.files import validate_file, safe_path
 from app.core.config import MAX_BYTES
 from pathlib import Path
@@ -174,7 +174,9 @@ def create_talent(body: TalentInput, request_id: str, user: User, db: DbSession,
         return detail(db, talent_access(db, user, 'talent.write', old))
     obj = save_talent(db, user, body, request_id)
     remember(db, user, 'talent.create', idempotency_key, payload, obj.id)
-    db.commit()
+    replay = commit_or_replay(db, user, 'talent.create', idempotency_key, payload)
+    if replay:
+        return detail(db, talent_access(db, user, 'talent.write', replay))
     return detail(db, obj)
 
 def get_talent(talent_id: str, request_id: str, user: User, db: DbSession) -> dict:
@@ -209,7 +211,11 @@ async def upload(talent_id: str, request_id: str, file: UploadFile, user: User, 
         db.flush()
         remember(db, user, 'file.upload', idempotency_key, payload, obj.id)
         audit(db, user, 'file.upload', obj.id, request_id)
-        db.commit()
+        replay = commit_or_replay(db, user, 'file.upload', idempotency_key, payload)
+        if replay:
+            path.unlink(missing_ok=True)
+            talent_access(db, user, 'file.write', talent_id)
+            return row(db.get(File, replay))
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -246,7 +252,10 @@ def create_task(file_id: str, body: TestTaskInput, request_id: str, user: User, 
     db.add(Outbox(task_id=task.id, run_version=1))
     remember(db, user, 'task.create', idempotency_key, payload, task.id)
     audit(db, user, 'test_task.create', task.id, request_id)
-    db.commit()
+    replay = commit_or_replay(db, user, 'task.create', idempotency_key, payload)
+    if replay:
+        talent_access(db, user, 'task.run', obj.talent_id)
+        return row(db.get(Task, replay))
     return row(task)
 
 def tasks(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> dict:

@@ -9,7 +9,7 @@ os.environ['DATABASE_URL']='sqlite:///data/stage-two-evaluation/index-live-'+key
 from app.core.db import Base, engine, Session
 from app.models.entities import Talent, IndexEvent, User
 from app.cli import seed
-from app.services.resume_index import compensate_indexes, scoped_index_filter, COLLECTION, request_reindex
+from app.services.resume_index import compensate_indexes, scoped_index_filter, COLLECTION, request_reindex, cleanup_old_indexes
 from sqlalchemy import select
 import httpx
 Base.metadata.create_all(engine)  # 仅此脚本的全新隔离合成库，不用于应用启动。
@@ -46,7 +46,13 @@ try:
     assert any(hit['talent_id']==key and hit['profile_version']==2 for hit in query('demo.hr'))
     with Session() as db:
         assert db.scalar(select(IndexEvent).where(IndexEvent.version==1)).state=='obsolete'
-    print('真实Ollama/Milvus：连接失败补偿、后端授权过滤、当前版本更新和旧版本排除通过')
+    cleaned = cleanup_old_indexes(talent_ids=[key])
+    assert cleaned['cleaned_profiles'] == 1 and cleaned['failed_profiles'] == 0
+    response = client.post('/v2/vectordb/entities/query', json={'collectionName': COLLECTION,
+        'filter':f'talent_id == "{key}"', 'consistencyLevel':'Strong', 'outputFields':['profile_version']})
+    assert response.json()['code'] == 0
+    assert response.json()['data'] and all(hit['profile_version'] == 2 for hit in response.json()['data'])
+    print('真实Ollama/Milvus：连接失败补偿、授权过滤、当前版本更新、旧版本排除及物理清理通过')
 finally:
     # 只删除本脚本UUID的合成向量，保留集合和其他资料。
     response=client.post('/v2/vectordb/entities/delete',json={'collectionName':COLLECTION,'filter':f'talent_id == "{key}"'})

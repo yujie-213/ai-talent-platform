@@ -1,3 +1,25 @@
+# 当前交接：第五阶段待李玉杰验收
+
+2026-11-07：第一至四阶段均已由李玉杰验收，第五阶段本轮完成并验证、待用户验收。分支 `codex/stage-five-acceptance`，基线 `8943d6e`，启动文档 `6f4a174`，代码HEAD `2259b35`；最终文档提交、工作区/远端同步用git log/status/ls-remote确认，不循环自引用。远端沿用用户确认的 yujie-213/ai-talent-platform，不合并main或公开部署。
+
+接手先读stage-five-verification.md与deployment.md。business.commit_or_replay在唯一冲突后回滚并重查同用户/动作/键，服务重新授权，上传败方只删自身文件；archive_graph排除`其他`中的`他`；chat_access.visible_conversations批量核验全部成员及岗位读权，列表/工作台共享，无跨请求缓存；测评列表/统计共享SQL可见判据。resume_index及CLI清理仅严格旧版本向量，不删业务记录。
+
+新增check-local.py、stop-local-api.ps1、安全重载等待、backup-local.py离线备份/隔离恢复、summarize-stage-five-ai.py固定合成标注摘要、verify-stage-five-live.py真实并发/隔离/性能。旧恢复脚本使用stage4配置并start既有Worker，防止降级。前端仅加会话ID定位属性并修复旧脚本对折叠任务编号的判断，没有新增UI交互。
+
+验证：完整SQLite177/601.02秒、随机MySQL177/1702.09秒；最终相关模块SQLite43/264.39秒、MySQL43/577.50秒；末次清理2/12.89秒。真实机制/匹配/解析/聊天故障恢复、索引清理、全部页面业务、构建/最终自检通过。备份恢复42表/34文件及隔离登录/业务读取通过，随机测试/恢复库均清理，备份/恢复文件保留在忽略data目录。前置失败和修正详列，不累加数量或隐藏失败。
+
+AI：8格式41标注项40命中；清晰OCR4/4行；3人检索TP1/FP0/FN0，语义人数支持1/未知1/相反1，覆盖3/3；JD漏description。全范围73人65评分/8条空档案明确失败。工作台串行p50 3615→223ms，4并发9008→533ms（各20请求、有其他回归负载）。不能推广为总体准确率或生产容量。未测跨主机/公网/长期/磁盘灾备，历史选择器最近100条及既有大包/AnyIO警告保留。
+
+本机5173/API8000与五个项目容器运行，最终API PID38240（以实际端口查询为准）；无迁移/依赖变化，不重seed。凭据、报告、SQL备份、原文件/截图仍忽略，没有混入他人改动。下一步按验证文档由李玉杰验收，不自行标为用户已验收。
+
+---
+
+# 当前交接：第五阶段进行中
+
+2026-11-07：用户已明确验收第四阶段及当前前端综合重构，授权开始第五阶段。当前分支 `codex/stage-five-acceptance`，第四阶段基线 `8943d6e`，本聊天此前启动说明修正已提交 `6f4a174`。执行清单见stage-five.md。完整回归与服务检查已启动；最终结果以stage-five-verification.md为准。尚未完成第五阶段，不标记已验收，不合并main或公开部署。
+
+---
+
 # 当前交接：本机后台服务恢复
 
 2026-11-07：分支仍为 `codex/ui-ux-redesign`，HEAD `8943d6e`；接续本聊天README/进度/交接三处未提交改动。用户提供追踪编号 `70c864da-e96d-479a-8570-5b2bad0d3108`，现有日志未查到原请求。实际Docker Linux引擎未运行，数据库连接OperationalError，API8000未监听。已启动既有Docker Desktop，使用第四阶段Compose配置start恢复mysql/redis/worker/dispatcher/indexer，并用现有reload-local-api.ps1启动API（本次PID49944）。没有修改业务代码、依赖、数据结构或账号，没有重建容器或初始化数据。

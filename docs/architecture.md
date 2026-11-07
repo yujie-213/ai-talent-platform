@@ -1,3 +1,11 @@
+# 第五阶段导航（2026-11-07）
+
+business.commit_or_replay统一建档/文件/机制任务首次并发的回滚后原成果重放，application再次授权，文件败方清理自身临时写入。chat_access.visible_conversations在请求内批量核验全部固定成员及岗位读权，archive_chat.listing/workbench共用；单会话/任务/引用仍逐次鉴权，无权限缓存。assessments.visible_assignment_clause供列表SQL分页与统计共用，保留当前绑定与双权限。archive_graph只修正`其他`误判，不改变评分规则。
+
+resume_index.cleanup_old_indexes及app.cli index-cleanup仅删严格旧版本向量；check-local.py、stop/reload-local-api.ps1、backup-local.py提供自检、安全API启停、离线备份及隔离恢复。tests/test_stage_five.py验证新增关键边界。无新迁移或依赖，真实结果见stage-five-verification.md，部署/数据保留见deployment.md。
+
+---
+
 # 前端综合重构导航（2026-11-07）
 
 当前界面以本节及frontend-rebuild.md为准，下方卡片/弹窗描述是历史。App保留身份、受控API、档案写入/文件/任务编排；CandidateWorkspace复用简历与人才列表，CandidateTable一人一行替代已删除的CandidateCard；ProfileWorkspace拥有画像分区和AI阅读容器，ProfileFacts提供就近来源入口。RequirementWorkspace为可返回的岗位工作页面，MatchWorkspace保留批次、范围和执行版本，列表与解释共享选中状态。AccountWorkspace与CatalogWorkspace拆离App，角色与日志在同一管理域内导航；AssessmentWorkspace按任务、题库、试卷、分配区分职责。

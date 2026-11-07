@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import {ref,watch} from 'vue'
+import {ref,watch,computed} from 'vue'
 import ChatWorkspace from './ChatWorkspace.vue'
+import PersonAvatar from './PersonAvatar.vue'
 import type {Api} from './api'
-const props=defineProps<{id:string;name:string;kind:string;department:string;version:number;api:Api;token:string;canChat:boolean;editing:boolean;backLabel:string}>()
+const props=defineProps<{id:string;name:string;kind:string;department:string;version:number;api:Api;token:string;canChat:boolean;editing:boolean;backLabel:string;facts?:{category:string;content:string}[]}>()
 const emit=defineEmits<{back:[];edit:[]}>()
 const tab=ref('facts'),showAI=ref(window.matchMedia('(min-width:901px)').matches)
 const stored=Number(localStorage.getItem('profile-split'))
@@ -19,6 +20,10 @@ function startDrag(event:PointerEvent){
   window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)
 }
 function nudge(delta:number){docPct.value=Math.min(72,Math.max(32,docPct.value+delta));localStorage.setItem('profile-split',String(Math.round(docPct.value)))}
+// 概览条的标签计数来自真实档案事实，没有对应类别就显示 0，不生成示意数据。
+const categoryMeta:[string,string][]=[['education','教育'],['experience','经历'],['project','项目'],['skill','技能'],['certificate','证书']]
+const categoryCounts=computed(()=>categoryMeta.map(([key,label])=>({key,label,count:(props.facts||[]).filter(f=>f.category===key).length})))
+const factsTotal=computed(()=>(props.facts||[]).length)
 </script>
 <template>
   <section class="profile-workspace" aria-label="人才画像工作区">
@@ -26,7 +31,7 @@ function nudge(delta:number){docPct.value=Math.min(72,Math.max(32,docPct.value+d
     <div ref="splitEl" class="profile-split" :class="{'with-ai':id&&canChat&&showAI,'ai-focused':showAI&&!editing,dragging}" :style="{'--doc-width':docPct+'%'}">
       <section class="profile-document" aria-label="档案资料">
         <template v-if="editing"><slot name="edit"/></template>
-        <template v-else><el-tabs v-model="tab" class="workspace-tabs"><el-tab-pane label="事实与履历" name="facts"/><el-tab-pane label="来源文件" name="files"/><el-tab-pane label="测评记录" name="assessments"/><el-tab-pane label="修改历史" name="history"/></el-tabs><div class="profile-document-body"><slot v-if="tab==='facts'" name="facts"/><slot v-if="tab==='files'" name="files"/><slot v-if="tab==='assessments'" name="assessments"/><slot v-if="tab==='history'" name="history"/></div></template>
+        <template v-else><div class="profile-hero"><PersonAvatar :name="name" :size="44"/><div class="hero-text"><span class="hero-meta">共 {{factsTotal}} 条事实记录</span></div><div class="hero-counts" aria-label="档案事实分布"><span v-for="c in categoryCounts" :key="c.key" class="hero-chip" :class="{empty:!c.count}">{{c.label}} {{c.count}}</span></div></div><el-tabs v-model="tab" class="workspace-tabs"><el-tab-pane label="事实与履历" name="facts"/><el-tab-pane label="来源文件" name="files"/><el-tab-pane label="测评记录" name="assessments"/><el-tab-pane label="修改历史" name="history"/></el-tabs><div class="profile-document-body"><slot v-if="tab==='facts'" name="facts"/><slot v-if="tab==='files'" name="files"/><slot v-if="tab==='assessments'" name="assessments"/><slot v-if="tab==='history'" name="history"/></div></template>
       </section>
       <div v-if="id&&canChat&&showAI" class="split-handle" role="separator" aria-orientation="vertical" aria-label="调整档案与 AI 宽度" :aria-valuenow="Math.round(docPct)" tabindex="0" @pointerdown.prevent="startDrag" @keydown.left.prevent="nudge(-4)" @keydown.right.prevent="nudge(4)"><span class="split-line"></span></div>
       <section v-if="id&&canChat" v-show="showAI" class="profile-ai" aria-label="当前人才AI助手"><ChatWorkspace :key="id" :api="api" :token="token" :context="{kind:'selected',ids:[id]}" :scope-label="name" embedded/></section>
@@ -38,6 +43,13 @@ function nudge(delta:number){docPct.value=Math.min(72,Math.max(32,docPct.value+d
 .profile-split{display:grid;grid-template-columns:minmax(0,1fr);gap:0;flex:1;min-height:0}
 .profile-split.with-ai{grid-template-columns:var(--doc-width,50%) 18px minmax(0,1fr)}
 .profile-document{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;padding:14px 18px}
+.profile-hero{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:2px 0 14px;margin-bottom:12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.hero-text{display:flex;flex-direction:column;gap:3px;min-width:0;margin-right:auto}
+.hero-meta{font-size:13px;font-weight:500;color:var(--text-secondary)}
+.hero-hint{font-size:11px;color:var(--text-tertiary)}
+.hero-counts{display:flex;gap:6px;flex-wrap:wrap}
+.hero-chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-variant-numeric:tabular-nums}
+.hero-chip.empty{background:var(--surface-muted);color:var(--text-tertiary)}
 .profile-document>.workspace-tabs{flex-shrink:0;margin:0}
 .profile-document-body{flex:1;min-height:0;overflow:auto;padding:8px 4px 14px 0}
 .profile-ai{padding:14px 16px;min-height:0;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}

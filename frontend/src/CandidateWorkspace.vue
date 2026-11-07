@@ -30,6 +30,36 @@ function apply(){page.value=1;void load()}
 function clearChip(key:string){(filters.value as Record<string,string>)[key]='';apply()}
 function clearAll(){filters.value={kind:props.profileMode?'':'external',skill:'',education:'',experience:'',sort:filters.value.sort,requirement_id:'',minimum_education:'',minimum_experience_years:''};apply()}
 function chatFiltered(){if(!appliedFilters.value)return;const {sort,...scopeFilters}=appliedFilters.value;emit('chat',{kind:'filtered',filters:scopeFilters},{requirement_id:requirements.value.find(r=>r.id===scopeFilters.requirement_id)?requirementLabel(requirements.value.find(r=>r.id===scopeFilters.requirement_id)!):''})}
+// 快捷切片只表达后端真实支持的筛选口径：身份、学历、年限。没有数据口径的条件不做成切片。
+const slices=[
+  {key:'all',label:'全部人才'},
+  {key:'external',label:'外部候选人'},
+  {key:'internal',label:'内部员工'},
+  {key:'master',label:'硕士及以上'},
+  {key:'exp5',label:'5 年以上经验'},
+] as const
+function sliceActive(key:string){
+  const f=filters.value
+  if(key==='all')return !f.kind&&!f.minimum_education&&!f.minimum_experience_years
+  if(key==='external')return f.kind==='external'&&!f.minimum_education&&!f.minimum_experience_years
+  if(key==='internal')return f.kind==='internal'
+  if(key==='master')return f.minimum_education==='硕士'
+  if(key==='exp5')return f.minimum_experience_years==='5'
+  return false
+}
+function applySlice(key:string){
+  if(key==='all'){filters.value.kind=props.profileMode?'':'external';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
+  if(key==='external'){filters.value.kind='external';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
+  if(key==='internal'){filters.value.kind='internal';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
+  if(key==='master')filters.value.minimum_education='硕士'
+  if(key==='exp5')filters.value.minimum_experience_years='5'
+  apply()
+}
+// 概览条只展示真实统计：授权人才与解析任务状态；取不到时静默隐藏，不展示占位假数据。
+interface WorkbenchSummary {people?:Record<string,number>;parse_tasks?:Record<string,number>}
+const overview=ref<WorkbenchSummary|null>(null)
+async function loadOverview(){if(props.selfView||props.profileMode)return;try{overview.value=await props.api<WorkbenchSummary>('/workbench')}catch{overview.value=null}}
+
 const requirements=ref<{id:string;department_id?:string;draft:{title:string}}[]>([])
 function requirementLabel(r:typeof requirements.value[number]){const department=props.departments?.find(d=>d.id===r.department_id)?.name;return (department?department+' · ':'')+(r.draft.title||'未命名需求')}
 
@@ -85,13 +115,21 @@ async function upload() {
   busy.value = false; selectedBatch.value=batch; await load(); await loadBatch()
 }
 watch(()=>props.reloadToken,()=>void load())
-onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;const all:typeof requirements.value=[];while(true){const data=await props.api<{items:typeof requirements.value;total:number}>(`/requirements?offset=${offset}&limit=100`);all.push(...data.items);if(!data.items.length||all.length>=data.total)break;offset+=data.items.length}requirements.value=all}catch(error){ElMessage.error((error as Error).message)}}})
+onMounted(async()=>{void loadOverview();await load();if(props.canRequirements){try{let offset=0;const all:typeof requirements.value=[];while(true){const data=await props.api<{items:typeof requirements.value;total:number}>(`/requirements?offset=${offset}&limit=100`);all.push(...data.items);if(!data.items.length||all.length>=data.total)break;offset+=data.items.length}requirements.value=all}catch(error){ElMessage.error((error as Error).message)}}})
 </script>
 <template>
   <div class="title-row"><div><h1>{{title||'简历筛选'}}</h1></div><div class="batch-actions"><slot name="actions"/><el-button v-if="canImport" type="primary" @click="activeTab='imports'">＋ 上传简历</el-button></div></div>
+  <div v-if="overview" class="overview-strip" aria-label="授权范围概览">
+    <div class="overview-stat"><span class="stat-label">授权人才</span><strong>{{(overview.people?.external||0)+(overview.people?.internal||0)}}</strong><span class="stat-note">外部 {{overview.people?.external||0}} · 内部 {{overview.people?.internal||0}}</span></div>
+    <div class="overview-stat"><span class="stat-label">解析进行中</span><strong>{{(overview.parse_tasks?.queued||0)+(overview.parse_tasks?.running||0)}}</strong><span class="stat-note">排队 {{overview.parse_tasks?.queued||0}} · 执行 {{overview.parse_tasks?.running||0}}</span></div>
+    <div class="overview-stat" :class="{attention:(overview.parse_tasks?.failed||0)>0}"><span class="stat-label">失败任务</span><strong>{{overview.parse_tasks?.failed||0}}</strong><span class="stat-note">{{(overview.parse_tasks?.failed||0)>0?'需要在任务记录中处理':'当前没有积压'}}</span></div>
+  </div>
   <el-tabs v-if="!profileMode" v-model="activeTab" class="resume-tabs"><el-tab-pane label="候选人筛选" name="candidates"/><el-tab-pane label="导入与解析记录" name="imports"/></el-tabs>
   <div v-show="activeTab==='candidates'" class="candidate-list-page">
   <form v-if="!selfView" class="filter-bar" @submit.prevent="apply">
+    <div class="slice-row" role="group" aria-label="快捷筛选">
+      <button v-for="s in slices" :key="s.key" type="button" class="slice-chip" :class="{active:sliceActive(s.key)}" @click="applySlice(s.key)">{{s.label}}</button>
+    </div>
     <div class="filter-row">
       <el-input v-model="filters.skill" class="filter-search" placeholder="搜索技能关键词，如 Python" clearable aria-label="技能关键词"/>
       <el-select v-model="filters.kind" class="filter-item" aria-label="人才身份"><el-option label="外部候选人" value="external"/><el-option label="内部员工" value="internal"/><el-option label="全部授权人才" value=""/></el-select>
@@ -132,7 +170,17 @@ onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;cons
 
 <style scoped>
 .candidate-list-page{display:flex;flex-direction:column}
-.filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin:0 0 16px}
+.overview-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 14px}
+.overview-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;display:flex;flex-direction:column;gap:2px}
+.overview-stat strong{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25}
+.stat-label{font-size:12px;color:var(--text-secondary)}
+.stat-note{font-size:11px;color:var(--text-tertiary)}
+.overview-stat.attention strong{color:#b4231f}
+.slice-row{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border)}
+.slice-chip{border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);border-radius:999px;padding:5px 13px;font-size:12px;cursor:pointer;line-height:1.4;transition:all .15s}
+.slice-chip:hover{border-color:var(--accent);color:var(--accent)}
+.slice-chip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:500}
+.filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;margin:0 0 16px}
 .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .filter-search{flex:1 1 260px;min-width:200px}
 .filter-item{width:150px}
@@ -164,6 +212,7 @@ onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;cons
 .import-section{margin-top:16px}
 .import-section>summary{font-weight:600}
 .resume-tabs{margin-bottom:4px}
-@media(max-width:1150px){.filter-search{flex-basis:100%;max-width:none}.filter-item{width:calc(50% - 4px)}.candidate-results{overflow-x:auto}}
+@media(max-width:1150px){.filter-search{flex-basis:100%;max-width:none}.filter-item{width:calc(50% - 4px)}.candidate-results{overflow-x:auto}.overview-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.overview-strip{grid-template-columns:1fr 1fr}.overview-stat:last-child{grid-column:1/-1}}
 @media(max-width:760px){.filter-item{width:100%}.result-toolbar{flex-direction:column;gap:10px}.result-actions{width:100%}.sort-select{width:100%}.filter-more .el-select,.filter-more .el-input{width:100%}}
 </style>

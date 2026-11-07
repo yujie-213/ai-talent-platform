@@ -1,4 +1,4 @@
-/* 设计令牌 v2：单一主色、中性画布、以留白和分隔线建立层级，不使用装饰性阴影与渐变。 */
+/* 设计令牌 v3：冷调画布、大圆角、极淡卡片阴影；渐变只用于头像块与主按钮，不铺满页面。 */
 :root {
   font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   font-synthesis: none;
@@ -8,17 +8,18 @@
   --accent: #2f5bea;
   --accent-hover: #2549c9;
   --accent-soft: #eef3ff;
+  --accent-gradient: linear-gradient(135deg, #3b63f3 0%, #6a4df4 100%);
   --surface: #ffffff;
-  --surface-muted: #f7f8fa;
-  --background: #f5f6f8;
+  --surface-muted: #f6f7fa;
+  --background: #f4f6fb;
   --text: #171b23;
   --text-secondary: #5c6470;
   --text-tertiary: #8b929c;
-  --border: #e6e8ec;
+  --border: #e6e8ee;
   --border-strong: #d5d9e0;
-  --radius: 10px;
-  --radius-sm: 6px;
-  --shadow: none;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(23, 27, 35, .05);
   --nav: #151a23;
   --el-color-primary: var(--accent);
   --el-color-primary-light-3: #6b8bf0;
@@ -108,8 +109,11 @@ p { line-height: 1.7; overflow-wrap: anywhere; }
 .object-title h1 { font-size: 21px; }
 
 /* ---------- Element Plus 基础收敛 ---------- */
-.el-card { --el-card-padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: none; }
-.el-card.is-always-shadow { box-shadow: none; }
+.el-card { --el-card-padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.el-card.is-always-shadow { box-shadow: var(--shadow); }
+.el-button--primary { background: var(--accent-gradient); border: 0; }
+.el-button--primary:hover, .el-button--primary:focus { background: var(--accent-gradient); opacity: .92; }
+.el-button--primary.is-disabled { background: var(--accent-gradient); opacity: .45; }
 .el-card + .el-card { margin-top: 14px; }
 .el-card__header { padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .el-card__header h2 { margin: 0; }

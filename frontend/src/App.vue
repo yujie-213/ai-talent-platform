@@ -16,6 +16,11 @@ import ProfileFacts from './ProfileFacts.vue'
 import ProfileWorkspace from './ProfileWorkspace.vue'
 import AccountWorkspace from './AccountWorkspace.vue'
 import CatalogWorkspace from './CatalogWorkspace.vue'
+import PageHeader from './PageHeader.vue'
+import StatusTag from './StatusTag.vue'
+import FactGrid from './FactGrid.vue'
+import EmptyState from './EmptyState.vue'
+import UuidShort from './UuidShort.vue'
 interface Grant { action: string; scope: string; scope_id: string | null }
 interface Me { id: string; username: string; menus?:string[]; grants: Grant[] }
 interface Fact {id?:string;quote?:string;locator?:string;source_task_id?:string;source_file_id?:string;category: string; content: string; confirmed?: boolean; source_type?: string; source_version?: number}
@@ -43,7 +48,6 @@ const can = (action: string) => me.value?.grants.some(g => g.action === action) 
 const departmentName = (id: string | null) => catalog.value.departments.find(d => d.id === id)?.name || '—'
 const positionOptions = computed(() => catalog.value.department_positions.filter(p => p.department_id === selected.value?.department_id))
 const positionName = (id?: string) => catalog.value.positions.find(p => p.id === id)?.name || id
-const stateName: Record<string,string> = {queued:'待处理', running:'处理中', succeeded:'成功', failed:'失败'}
 const api = createApi(() => auth.value, logout)
 async function run(fn: () => Promise<void>) { busy.value = true; try { await fn() } catch (e) { ElMessage.error((e as Error).message) } finally { busy.value = false } }
 function logout() { profileCitation.value=null;scopeChat.value=false;detailRequest++; auth.value = ''; me.value = null; talents.value = []; selected.value = null; files.value = []; tasks.value = []; taskPage.value = 1; taskTotal.value = 0; focusedTaskId.value = null; focusedTask.value = null; taskListRequest++; login.value.password = '' }
@@ -94,6 +98,9 @@ async function refreshTasks() { await Promise.all([loadTasks(), loadFocusedTask(
 async function openTask(t: Task) { focusedTaskId.value = t.id; focusedTask.value = null; await run(loadFocusedTask) }
 async function changeTaskPage(value: number) { taskPage.value = value; await run(loadTasks) }
 async function retry(t: Task) { await run(async () => { await api(`/tasks/${t.id}/retry`, 'POST', {version:t.run_version}); await refreshTasks() }) }
+const taskError = (t: Task) => t.error_code ? (errorName[t.error_code] || t.error_code) : ''
+const taskOutcome = (t: Task) => t.state === 'failed' ? taskError(t) : (t.result || '—')
+async function copyText(text: string) { try { await navigator.clipboard.writeText(text); ElMessage.success('编号已复制') } catch { ElMessage.warning('复制失败，请手动选择编号') } }
 async function navigate(p: string) { if(selected.value)await closeProfile();if(selected.value)return;profileCitation.value=null;scopeChat.value=false;page.value = p; await run(async () => { me.value = await api('/auth/me'); if(!menuVisible(p)){page.value='no-menus';return} if (p === 'talents') await loadTalents(); if (p === 'tasks') await refreshTasks();  }) }
 function resetUploadKey() { uploadKey.value = crypto.randomUUID() }
 
@@ -122,18 +129,31 @@ onUnmounted(() => clearInterval(timer))
       <div v-show="!selected" class="workspace-page"><nav v-if="inManagement" class="management-tabs" aria-label="系统管理分区"><button v-for="item in managementItems" :key="item.key" :class="{active:page===item.key}" :aria-current="page===item.key?'page':undefined" @click="navigate(item.key)">{{item.name}}</button></nav>
       <el-empty v-if="page==='no-menus'" description="当前账号没有已配置的可见菜单，请联系账号管理员"/><ChatWorkspace v-if="page==='chat'" :key="JSON.stringify(chatContext)" :api="api" :token="auth" :context="chatContext"/><Workbench v-if="page==='workbench'" :api="api" :mode="selfView?'self':can('talent.read')?'hr':'admin'" @requirement="openRequirement" :shortcuts="navGroups.flatMap(g=>g.items).filter(i=>['candidates','talents','requirements','assessments','accounts','roles','catalog','audit','tasks'].includes(i.key))" @navigate="navigate"/><RoleWorkspace v-if="page==='roles'" :api="api" :catalog="catalog"/><AssessmentWorkspace v-if="page==='assessments'" :api="api" :manage="can('assessment.manage')" :assign="can('assessment.assign')"/><KeepAlive><RequirementWorkspace v-if="page==='requirements'" :api="api" :entry="requirementEntry" :catalog="catalog" :can-write="can('requirement.write')" :can-talent-write="can('talent.write')" @open="id => openTalent({id} as Talent)" @task="id => {focusedTaskId=id; navigate('tasks')}"/></KeepAlive><KeepAlive><CandidateWorkspace v-if="page==='candidates'" :api="api" :can-chat="can('chat.use')" @chat="openChat" :can-requirements="can('requirement.read')" :departments="catalog.departments" :can-import="can('file.write') && can('task.run') && can('talent.write')" @open="id => openTalent({id} as Talent)" @task="id => {focusedTaskId=id; navigate('tasks')}"/></KeepAlive><KeepAlive><CandidateWorkspace v-if="page==='talents'" :api="api" :can-import="false" :profile-mode="true" :self-view="selfView" :title="selfView?'我的档案':'人才画像'" :reload-token="profileReload" :can-chat="can('chat.use')" :can-requirements="can('requirement.read')" :departments="catalog.departments" @open="id=>openTalent({id} as Talent)" @chat="openChat" @task="id=>{focusedTaskId=id;navigate('tasks')}"><template #actions><el-button v-if="can('talent.write')&&!selfView" type="primary" @click="newTalent">新建人才</el-button></template></CandidateWorkspace></KeepAlive>
       <template v-if="page==='tasks'">
-        <div class="title-row"><div><p class="eyebrow">PROCESSING</p><h1>任务记录</h1><p class="muted">逐文件查看解析进度、失败原因及重试记录。</p></div><el-button @click="run(refreshTasks)">刷新</el-button></div>
-        <el-card v-if="focusedTask" data-testid="task-detail">
-          <div class="table-head"><strong>任务详情</strong><el-button text @click="focusedTaskId=null; focusedTask=null">关闭详情</el-button></div>
-          <p>任务编号：<span data-testid="focused-task-id">{{ focusedTask.id }}</span></p>
-          <p>技术执行状态：{{ stateName[focusedTask.state] }} · 执行版本 {{ focusedTask.run_version }}</p>
-          <p v-if="focusedTask.result">{{ focusedTask.result }}</p><p v-if="focusedTask.error_code">{{ errorName[focusedTask.error_code] || focusedTask.error_code }}</p>
-          <el-button v-if="focusedTask.talent_id" @click="openTalent({id:focusedTask.talent_id} as Talent)">核对当前人才档案</el-button><ExtractionResult :api="api" :task-id="focusedTask.id" :state="focusedTask.state"/><p v-for="attempt in focusedTask.attempts" :key="attempt.run_version" class="muted">执行版本 {{attempt.run_version}} · {{stateName[attempt.state] || attempt.state}}</p>
-          <el-button v-if="focusedTask.state==='failed' && focusedTask.run_version<3 && focusedTask.retryable!==false && can('task.run')" @click="retry(focusedTask)">重试此任务</el-button>
+        <PageHeader title="解析任务" subtitle="逐文件查看简历解析进度与失败原因，失败任务可按提示重试。"><el-button @click="run(refreshTasks)">刷新</el-button></PageHeader>
+        <el-card v-if="focusedTask" class="task-detail-card" data-testid="task-detail">
+          <div class="task-detail-head"><div class="task-detail-title"><strong>任务详情</strong><StatusTag :state="focusedTask.state"/></div><el-button text @click="focusedTaskId=null; focusedTask=null">关闭详情</el-button></div>
+          <FactGrid :items="[{key:'id',label:'任务编号',span:2},{key:'version',label:'执行版本'},{key:'state',label:'执行状态'},{key:'outcome',label: focusedTask.state==='failed'?'失败原因':'处理结果',span:2}]">
+            <template #id><span class="id-line"><span data-testid="focused-task-id" class="mono">{{ focusedTask.id }}</span><button class="copy-btn" type="button" @click="copyText(focusedTask.id)">复制</button></span></template>
+            <template #version>第 {{ focusedTask.run_version }} 次执行</template>
+            <template #state><StatusTag :state="focusedTask.state"/></template>
+            <template #outcome><span :class="{'err-text':focusedTask.state==='failed'}">{{ focusedTask.state==='failed' ? taskError(focusedTask) : (focusedTask.result || '—') }}</span></template>
+          </FactGrid>
+          <div class="task-detail-actions">
+            <el-button v-if="focusedTask.talent_id" type="primary" @click="openTalent({id:focusedTask.talent_id} as Talent)">核对当前人才档案</el-button>
+            <el-button v-if="focusedTask.state==='failed' && focusedTask.run_version<3 && focusedTask.retryable!==false && can('task.run')" @click="retry(focusedTask)">重试此任务</el-button>
+            <span v-for="attempt in focusedTask.attempts" :key="attempt.run_version" class="attempt-item">第 {{attempt.run_version}} 次 · <StatusTag :state="attempt.state"/></span>
+          </div>
+          <ExtractionResult :api="api" :task-id="focusedTask.id" :state="focusedTask.state"/>
         </el-card>
         <p class="muted" data-testid="task-total">共 {{taskTotal}} 条任务</p>
-        <el-table :data="tasks" data-testid="task-table"><el-table-column prop="id" label="任务编号"/><el-table-column label="状态"><template #default="s">{{stateName[s.row.state]}}</template></el-table-column><el-table-column prop="run_version" label="执行版本"/><el-table-column prop="result" label="结果"/><el-table-column prop="error_code" label="失败原因"/><el-table-column label="操作"><template #default="s"><el-button @click="openTask(s.row)">查看</el-button><el-button v-if="s.row.state==='failed' && s.row.run_version<3 && s.row.retryable!==false && can('task.run')" @click="retry(s.row)">重试</el-button></template></el-table-column></el-table>
-        <el-empty v-if="!tasks.length" description="暂无解析任务，可先导入简历或在来源文件中发起解析"/>
+        <el-table :data="tasks" data-testid="task-table">
+          <el-table-column label="任务编号" width="150"><template #default="s"><UuidShort :id="s.row.id"/></template></el-table-column>
+          <el-table-column label="状态" width="92"><template #default="s"><StatusTag :state="s.row.state"/></template></el-table-column>
+          <el-table-column label="执行" width="74"><template #default="s">第 {{s.row.run_version}} 次</template></el-table-column>
+          <el-table-column label="结果" min-width="170"><template #default="s"><span class="outcome-cell" :class="{'err-text':s.row.state==='failed'}" :title="taskOutcome(s.row)">{{taskOutcome(s.row)}}</span></template></el-table-column>
+          <el-table-column label="操作" width="100"><template #default="s"><el-button link type="primary" @click="openTask(s.row)">查看</el-button><el-button v-if="s.row.state==='failed' && s.row.run_version<3 && s.row.retryable!==false && can('task.run')" link type="primary" @click="retry(s.row)">重试</el-button></template></el-table-column>
+        </el-table>
+        <EmptyState v-if="!tasks.length" title="暂无解析任务" hint="在「简历筛选」上传简历后，每个文件会生成一条解析任务。" action-label="去上传简历" @action="navigate('candidates')"/>
         <el-pagination data-testid="task-pagination" layout="total, prev, pager, next" :current-page="taskPage" :total="taskTotal" :page-size="taskPageSize" @current-change="changeTaskPage"/>
       </template>
       <AccountWorkspace v-if="page==='accounts'" :api="api" :departments="catalog.departments"/>
@@ -154,3 +174,19 @@ onUnmounted(() => clearInterval(timer))
     <el-dialog :model-value="!!profileCitation" title="事实来源" width="min(740px,94vw)" @close="profileCitation=null"><template v-if="profileCitation"><p>{{profileCitation.source_type==='manual'?'人工维护事实':'简历声明'}} · 来源 v{{profileCitation.source_version}}</p><p class="pre-line">{{profileCitation.content}}</p><blockquote v-if="profileCitation.quote">{{profileCitation.quote}}</blockquote><p v-if="profileCitation.locator">原文位置：{{profileCitation.locator}}</p><p v-if="profileCitation.source_type==='manual'" class="muted">人工事实以档案版本记录为依据。</p><el-button v-if="profileCitation.source_task_id" @click="focusedTaskId=profileCitation.source_task_id;profileCitation=null;selected=null;navigate('tasks')">打开解析出处</el-button><p v-else-if="profileCitation.source_type==='resume'" class="muted">当前没有可读取的原文定位，可在来源文件中核对已授权文件。</p></template></el-dialog>
   </div>
 </template>
+
+<style scoped>
+/* 解析任务页：详情卡与列表 */
+.task-detail-card { margin-bottom: 16px; }
+.task-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.task-detail-title { display: flex; align-items: center; gap: 10px; }
+.task-detail-title strong { font-size: 15px; }
+.id-line { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.copy-btn { border: 0; background: transparent; color: var(--accent); font-size: 11px; cursor: pointer; padding: 0 2px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; }
+.copy-btn:hover { text-decoration: underline; }
+.task-detail-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.attempt-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-tertiary); }
+.outcome-cell { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.6; }
+.err-text { color: #a93434; }
+</style>

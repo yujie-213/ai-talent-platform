@@ -113,13 +113,25 @@ def restore_test(folder):
                 host='127.0.0.1', port=13306, database=database).render_as_string(hide_password=False)
             environment['FILE_ROOT'] = str(target / 'files')
             environment['PYTHONPATH'] = str(ROOT / 'backend')
-            code = '''from pathlib import Path
-import re
+            cursor.execute(f'SELECT username FROM `{database}`.users WHERE enabled=1 AND username IN (%s,%s)',
+                ('zhou.yan','demo.hr'))
+            available = {row[0] for row in cursor.fetchall()}
+            username = 'zhou.yan' if 'zhou.yan' in available else 'demo.hr' if 'demo.hr' in available else None
+            credentials = {line.split(': ',1)[0]:line.split(': ',1)[1]
+                for line in (ROOT/'data/local-access.txt').read_text(encoding='utf-8').splitlines() if ': ' in line}
+            password = credentials.get(username) if username else None
+            if username == 'demo.hr' and not password:
+                # 本轮仅改登录名、保留原密码，故当前凭据也可验证替换前的备份。
+                password = credentials.get('demo.hr / demo.employee') or credentials.get('zhou.yan')
+            if not username or not password:
+                raise RuntimeError('RESTORE_LOCAL_CREDENTIAL_MISSING')
+            environment['RESTORE_CHECK_USERNAME'] = username
+            environment['RESTORE_CHECK_PASSWORD'] = password
+            code = '''import os
 from fastapi.testclient import TestClient
 from app.main import app
-password = re.search(r'^demo.hr / demo.employee: (.+)$', Path('data/local-access.txt').read_text(encoding='utf-8'), re.M)[1]
 with TestClient(app) as client:
-    response = client.post('/api/auth/login', json={'username':'demo.hr','password':password})
+    response = client.post('/api/auth/login', json={'username':os.environ['RESTORE_CHECK_USERNAME'],'password':os.environ['RESTORE_CHECK_PASSWORD']})
     assert response.status_code == 200
     headers = {'Authorization':'Bearer ' + response.json()['data']['token']}
     for path in ('/api/auth/me','/api/workbench','/api/candidates?limit=1'):

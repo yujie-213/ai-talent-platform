@@ -1,3 +1,19 @@
+# 当前交接：本机后台服务恢复
+
+2026-11-07：分支仍为 `codex/ui-ux-redesign`，HEAD `8943d6e`；接续本聊天README/进度/交接三处未提交改动。用户提供追踪编号 `70c864da-e96d-479a-8570-5b2bad0d3108`，现有日志未查到原请求。实际Docker Linux引擎未运行，数据库连接OperationalError，API8000未监听。已启动既有Docker Desktop，使用第四阶段Compose配置start恢复mysql/redis/worker/dispatcher/indexer，并用现有reload-local-api.ps1启动API（本次PID49944）。没有修改业务代码、依赖、数据结构或账号，没有重建容器或初始化数据。
+
+验证：数据库SELECT 1；经5173代理health200，admin/demo.hr/demo.employee的login、auth/me、workbench各200；五容器Up，数据库与Redis healthy。验证只输出状态码，不输出凭据/令牌/业务正文。首次检查脚本缺少PYTHONPATH，补齐后通过。原追踪号对应异常未证实，不能宣称确定根因；未复测OCR/模型/匹配等外部能力。README已加现有环境关机后重启步骤。当前前端/API/五个项目容器保持运行，用户刷新重试；前端综合重构仍待验收。改动仍只在三份文档，未提交推送，最终以git status/log为准。
+
+---
+
+# 当前交接：前端启动目录说明修正
+
+2026-11-07：接手分支 `codex/ui-ux-redesign`，HEAD `8943d6e`，初始工作区干净。用户提供的启动报错为在 `C:\Users\Windows` 下执行 `npm --prefix frontend ci`，相对路径未指向本项目，现有 `frontend/package-lock.json` 无缺失。README 已补当前启动入口、完整路径及历史另开终端的切换目录步骤，无产品代码或依赖变化。
+
+验证：正常本机权限 `npm.cmd --prefix frontend run dev` 启动成功，Vite 6.0.5，`Invoke-WebRequest` 检查5173首页及 `/src/main.ts` 均200；前端保留运行。`npm.cmd --prefix frontend run build` 类型检查及生产构建通过，仅有既有大包警告。受限环境首次 esbuild spawn EPERM 属于执行权限限制，不是用户提供的 EUSAGE 原因。API8000当时不可访问，本轮未重启或修改后端及数据库。下一步按README顶部步骤重试，若登录失败先检查既有后端；UI重构仍待用户验收。本轮改动仅README和进度/交接文档，未提交推送，最终状态以git status/log为准。
+
+---
+
 # 当前交接：前端综合重构待李玉杰验收
 
 2026-11-07（北京时间）。当前分支 `codex/ui-ux-redesign`，接手HEAD `6d5f821`，本轮代码HEAD `b75c098`。本轮开始工作区干净，业务代码已正常提交；文档随收尾提交，最终HEAD与工作区/远端同步以git log、git status及ls-remote核对，不循环自引用。origin复用既有 yujie-213/ai-talent-platform，公开属性沿用用户此前确认；没有合并main或公开部署应用。

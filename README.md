@@ -1,5 +1,34 @@
 # AI 数字化人才平台
 
+## 启动当前前端（Windows PowerShell）
+
+新打开的 PowerShell 通常位于 `C:\Users\Windows`，请先切换到项目根目录，再执行下面的命令。本机现有项目可直接复制：
+
+```powershell
+Set-Location -LiteralPath 'D:\AI数字化人才平台\AI 数字化人才平台'
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run dev
+```
+
+首次安装或依赖锁文件更新后执行 `ci`；平时启动只需切换目录并执行最后一行。启动后保持终端打开，访问 <http://127.0.0.1:5173>，停止用 `Ctrl+C`。项目放在其他位置时，请替换上面的完整路径。
+
+`--prefix frontend` 是相对于**当前终端目录**的路径，不会自动定位本项目。如果在 `PS C:\Users\Windows>` 下执行，会找错目录，出现找不到 `package.json` 或 `npm ci` 提示缺少 `package-lock.json`；先切换到项目根目录即可，不需要删除或重新生成项目已有的锁文件。下面的历史命令同样要求先进入项目根目录。
+
+前端只提供页面，登录及业务操作还需要 API <http://127.0.0.1:8000/docs> 可访问；已有第四阶段环境的后端启动见下文“第四阶段：聊天、测评与管理”，不要为启动前端重新初始化数据库。
+
+## 已有本机环境：关机后重新启动后端
+
+先打开 Docker Desktop，等引擎就绪。以下用于已经部署过第四阶段、容器和数据库仍存在的本机环境。在另一个 PowerShell 中执行，启动后保持终端打开：
+
+```powershell
+Set-Location -LiteralPath 'D:\AI数字化人才平台\AI 数字化人才平台'
+docker compose --project-name ai-talent-stage1 --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml -f infra/compose.stage4.yml start mysql redis worker dispatcher indexer
+$env:PYTHONPATH = Join-Path $PWD 'backend'
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+等待容器启动命令成功结束，再启动 API。如果8000已由本项目API监听，不要重复启动。检查 <http://127.0.0.1:8000/api/health> 及登录后的工作台；健康接口仅表示API存活，登录和工作台还会实际读取数据库。若Docker提示无法连接引擎，先确认Docker Desktop已启动；若提示缺少容器，按第四阶段部署说明排查，不运行初始化脚本。上述命令只启动已有项目容器，不安装依赖或执行数据库迁移。
+
 
 当前交付（2026-11-06）：第一至三阶段已由李玉杰验收。**第四阶段已实现并完成本机部署和验证，待用户验收**：统一档案聊天/引用/人数与持久语义任务、轻量测评、真实工作台及管理页面。本机页面 http://127.0.0.1:5173 、API http://127.0.0.1:8000 。当前规则、验证、限制及操作步骤见 [第四阶段清单](docs/stage-four.md) / [第四阶段验证与验收步骤](docs/stage-four-verification.md)。现有环境勿重新bootstrap/seed、勿删除库/卷/模型。未进入第五阶段，不发布公网服务。
 
@@ -31,9 +60,9 @@ docker compose --env-file .env -f infra/compose.yml up -d --build worker dispatc
 另开 PowerShell：
 
 ```powershell
-cd frontend
-npm ci
-npm run dev
+Set-Location -LiteralPath 'D:\AI数字化人才平台\AI 数字化人才平台'
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run dev
 ```
 
 打开 <http://127.0.0.1:5173>；接口契约 <http://127.0.0.1:8000/docs>。首次启动 Docker Desktop 后等 Linux 引擎就绪。初次镜像下载/构建可能较慢，启动 Worker 前先完成迁移。
@@ -97,8 +126,9 @@ docker compose --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml 
 另一个终端：
 
 ```powershell
-npm --prefix frontend ci
-npm --prefix frontend run dev
+Set-Location -LiteralPath 'D:\AI数字化人才平台\AI 数字化人才平台'
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run dev
 ```
 
 打开 http://127.0.0.1:5173 。本机账号仍从data/local-access.txt查看，不要把该文件提交或贴聊天。Worker使用隔离CPU OCR环境，indexer使用本地Ollama与既有Milvus；都不改变Dify服务。

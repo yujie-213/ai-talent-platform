@@ -1,3 +1,19 @@
+# 当前状态：本机后台服务已恢复，待用户重试
+
+2026-11-07：用户报告 INTERNAL_ERROR 追踪编号 `70c864da-e96d-479a-8570-5b2bad0d3108`。本机已有日志未命中该编号，不能把后续观察视为原请求的确定异常。实际检查发现Docker Linux引擎未运行、API8000未监听、数据库SELECT 1报OperationalError。启动已安装Docker Desktop，使用第四阶段Compose配置 `start mysql redis worker dispatcher indexer` 恢复五个既有容器，再通过 `scripts/reload-local-api.ps1` 启动API；没有重建、迁移或初始化数据。
+
+验证：数据库SELECT 1成功；前端5173代理health200，admin/demo.hr/demo.employee三账号登录、auth/me、workbench均200；五容器运行，MySQL/Redis healthy。本轮未测OCR/聊天/匹配AI链路及其他外部依赖。首次验证脚本漏设PYTHONPATH，补齐后上述验证通过。README新增“已有本机环境：关机后重新启动后端”。追踪编号原异常未找到，当前基础登录业务已恢复；等待用户刷新重试。
+
+---
+
+# 当前状态：前端启动目录说明已修正，待用户重试
+
+2026-11-07：用户在 `PS C:\Users\Windows>` 执行 `npm --prefix frontend ci`，收到 EUSAGE/缺少 package-lock.json。项目锁文件实际存在，原因是相对路径指向了错误目录。README 顶部增加当前前端启动入口，两个“另开终端”代码块补充带引号的完整项目路径，并解释 ci 使用时机和前后端区别；未修改业务代码、依赖或数据。
+
+本机实际 `npm.cmd --prefix frontend run dev` 启动 Vite 6.0.5，5173 首页及 `/src/main.ts` HTTP 200，保留运行供查看；`npm.cmd --prefix frontend run build` 类型检查及生产构建通过（存在既有大包警告）。当时 API8000 不可访问，登录/业务还需启动既有后端。受限执行环境首次报 esbuild spawn EPERM，正常本机权限启动成功，该报错与用户目录错误分开记录。前端综合重构仍待用户验收，未进入第五阶段。
+
+---
+
 # 当前状态：前端综合重构已实现并验证，待用户验收
 
 2026-11-07（北京时间）。已按指定 `prototypes/ai-talent-workspace-v1.html`、昨晚反馈及新增 UI 原则完成需求内综合重构。简历一人一行表格；画像独立工作页面/事实来源/按需AI/返回保留；岗位概览、结果、历史和编辑/JD明确分区，名单与解释就近；工作台真实岗位/最近匹配直达；测评职责页签；统一管理域及账号/角色/组织表单。UI原则已写入AGENTS.md §8。不进入第五阶段。

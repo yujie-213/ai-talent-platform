@@ -25,7 +25,7 @@ docker compose --project-name ai-talent-stage1 --env-file .env -f infra/compose.
 npm.cmd --prefix frontend run dev
 ```
 
-首次或依赖锁文件变动后先 `npm.cmd --prefix frontend ci`；Python依赖变动后才安装锁文件。本阶段没有依赖或数据库迁移变化，不需重装依赖、迁移、bootstrap或seed。API重载脚本只停止能确认属于当前项目的进程，并等待health200才报告就绪；日志在忽略目录 `data/frontend-rebuild`。前端保持终端打开，停止用Ctrl+C。浏览器访问 <http://127.0.0.1:5173>。
+首次或依赖锁文件变动后先 `npm.cmd --prefix frontend ci`；Python依赖变动后才安装锁文件。最近界面与筛选调整没有依赖或数据库迁移变化，不需重装依赖、迁移、bootstrap或seed。API重载脚本只停止能确认属于当前项目的进程，并等待health200才报告就绪；日志在忽略目录 `data/frontend-rebuild`。前端保持终端打开，停止用Ctrl+C。浏览器访问 <http://127.0.0.1:5173>。
 
 另开PowerShell，切换项目根目录后运行：
 
@@ -35,7 +35,46 @@ npm.cmd --prefix frontend run dev
 
 逐项检查真实数据库及迁移head、Redis、API、前端代理、五个项目容器、真实Embedding维度/摘要、Milvus集合和本机OCR解释器。生成API只报告是否配置，不以自检宣称模型可用；真实OCR/抽取/问答效果使用本阶段评测。完整自检输出到 `data/stage-five/readiness.json`，任一必需项失败会非零退出。`/api/health`仅表示API存活，不代替数据库或业务检查。
 
-新环境安装/增量升级仍按README第四阶段部署步骤显式执行Alembic；先备份，在维护窗口运行，不在应用启动时自动迁移。生成模型端点、凭据、Ollama摘要和已有Milvus部署均需由本机配置提供，不能从公开仓库恢复秘密。Windows隔离OCR环境按OCR锁文件安装；容器已包含 `/opt/ocr` 独立环境。
+新环境安装与增量升级见本页对应小节；先备份，在维护窗口显式执行Alembic，不在应用启动时自动迁移。生成模型端点、凭据、Ollama摘要和已有Milvus部署均需由本机配置提供，不能从公开仓库恢复秘密。Windows隔离OCR环境按OCR锁文件安装；容器已包含 `/opt/ocr` 独立环境。
+
+## 首次安装到新环境
+
+本节依据当前配置整理，不代表已经在另一台电脑完整复现。以下仅用于新的项目库；已有本机环境直接使用上一节。操作均从仓库根目录执行，沿用锁文件与固定镜像，不升级已有外部服务。
+
+1. 准备Python 3.13、Node.js 24、Docker Desktop Linux及本机模型服务。Ollama需要可用的bge-m3及其摘要，Milvus需可连接，生成端点支持chat/completions和json_object；外部服务的主机/容器地址分别核对。
+2. 安装项目Python依赖，生成本机配置，再对照`.env.example`补齐模型配置。setup-local只在.env不存在时生成随机秘密，不会自动补齐旧文件中的新配置。
+
+```powershell
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r backend/requirements.lock.txt
+.venv/Scripts/python.exe scripts/setup-local.py
+```
+
+3. 启动本项目数据库与Redis，等待健康，再显式迁移和建立第一个管理员。bootstrap仅用于尚无管理员的新库，密码在本机隐藏输入；不会自动生成当前工作电脑的业务资料或账号文件。
+
+```powershell
+docker compose --project-name ai-talent-stage1 --env-file .env -f infra/compose.yml up -d mysql redis
+$env:PYTHONPATH = Join-Path $PWD 'backend'
+.venv/Scripts/python.exe -m alembic -c backend/alembic.ini upgrade head
+.venv/Scripts/python.exe -m app.cli bootstrap --username admin
+```
+
+4. 按依赖顺序构建OCR基础镜像及当前后台镜像，再启动后台进程。stage2/stage4文件名是既有构建分层，不表示要部署两套业务系统。
+
+```powershell
+docker build -f infra/Dockerfile.stage2 -t ai-talent-stage2-backend:0.2.1 .
+docker build -f infra/Dockerfile.stage4 -t ai-talent-stage4-backend:0.4.0 .
+docker compose --project-name ai-talent-stage1 --env-file .env -f infra/compose.yml -f infra/compose.stage2.yml -f infra/compose.stage4.yml up -d --no-deps worker dispatcher indexer
+./scripts/reload-local-api.ps1
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run dev
+```
+
+管理员在系统管理中创建组织、角色、授权及业务账号后开展业务。合成seed和批量场景替换不是安装必需步骤，不在已有库执行。Windows自检的OCR若缺失，需另建隔离环境，按`backend/requirements-ocr.lock.txt`安装并配置`OCR_PYTHON`；容器已用`/opt/ocr`隔离环境。模型权重和秘密均不随仓库分发。
+
+## 已有环境增量升级
+
+先检查Git差异、备份MySQL及原文件。只有锁文件变化时安装依赖，只有出现新迁移时显式执行Alembic；有后台依赖变化才重建镜像。API重载用现有脚本；后台共享源码发生变化时，仅重启本项目worker/dispatcher/indexer，选择无在途作业窗口。最近筛选接口只影响API，不需为文档更新重启后台。
 
 ## 离线备份
 
@@ -68,7 +107,7 @@ try {
 .venv/Scripts/python.exe scripts/backup-local.py restore-test --backup 'D:\AI数字化人才平台\AI 数字化人才平台\data\backups\实际备份目录'
 ```
 
-先校验导出和文件哈希，再创建随机 `talent_restore_*` 隔离库，导入全部表；文件恢复到新的 `data/stage-five/restore/UUID` 路径。验证表行数、每个文件SHA-256，以及隔离应用真实登录/工作台/候选人读取。finally仅删除刚生成的随机演练库，保留恢复文件作证据；绝不覆盖开发库或原文件。脚本识别恢复库中的当前`zhou.yan`或原`demo.hr`，从本机私有凭据读取密码；本轮只改名保留密码，因此可验证替换前的备份。不含上述账号的其他数据库仍需另行适配授权验证账号，不能照搬并宣称验证通过。
+先校验导出和文件哈希，再创建随机 `talent_restore_*` 隔离库，导入全部表；文件恢复到新的 `data/stage-five/restore/UUID` 路径。验证表行数、每个文件SHA-256，以及隔离应用真实登录/工作台/候选人读取。finally仅删除刚生成的随机演练库，保留恢复文件作证据；绝不覆盖开发库或原文件。脚本识别恢复库中的`liyujie`、`zhou.yan`或`demo.hr`，按该库密码哈希选择本机当前或历史凭据；凭据缺失会明确失败。不含上述账号的其他数据库仍需另行适配授权验证账号，不能照搬并宣称验证通过。
 
 真实灾难恢复须在确认目标、备份完整性和配置可用后另行实施，本工具只提供无覆盖演练。MySQL/文件可恢复后，按当前版本重建向量；Redis丢失不丢权威任务，dispatcher从MySQL outbox补投。禁止 `down -v`、删卷、对已有库重seed或直接复制未停写的MySQL卷冒充一致性备份。
 

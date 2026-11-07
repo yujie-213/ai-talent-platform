@@ -1,5 +1,7 @@
 > 后续状态：李玉杰指出本轮蓝色UI与原型差距大，视觉未获认可。最新修正和验证见[原型对齐记录](ui-prototype-alignment.md)，该记录覆盖本页设计方向。
 
+> 历史实施／验证记录：以下状态、命令、选择器与样本数对应记录当时。当前进度见[progress](progress.md)，最新页面与验证入口见[调整记录](filter-task-adjustment.md)和[测试指南](testing.md)；勿据此重置当前数据或自动开展下一阶段。
+
 # UI 重构实施记录
 
 2026-11-06，基线424723e；独立分支codex/ui-ux-redesign。第五阶段未启动。

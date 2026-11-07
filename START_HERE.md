@@ -1,34 +1,18 @@
-# AI 数字化人才平台：Codex 开发启动包
+# 项目阅读与接手入口
 
-日期：2026-11-05（北京时间）
-负责人：李玉杰。星星是用户对 ChatGPT 的称呼，不是用户昵称。
+项目已经实现并运行，不是空目录初始化任务。先看 [README](README.md) 了解功能和运行方式。
 
-## 使用方式
-1. 将压缩包解压，将本文件、AGENTS.md、CODEX_START.md、docs/ 放入本机计划使用的项目根目录。
-2. 在本机 Codex 中打开该根目录，将 CODEX_START.md 的正文作为首条任务。
-3. Codex 从阶段一开始：检查环境、完善阶段一详细设计、初始化工程、开发并验证。
-4. 使用本机已登录的 GitHub 身份创建或关联仓库。本次用户后续明确改为公开仓库，已记录于 decisions.md；其他项目仍按默认私有约定。
-5. 阶段一完成后更新文档、提交并推送，标记待验收；由李玉杰和星星讨论验收后继续阶段二。
+## 推荐阅读顺序
 
-## 文件清单
-- AGENTS.md：所有 Agent 的开发和交接规则。
-- CODEX_START.md：可直接复制给 Codex 的启动任务。
-- docs/prd-v1.0-20261104.md：2026-11-04 冻结需求原文。
-- docs/decisions.md：2026-11-05 已确认决定与需求变更；与原 PRD 存在差异处见此文件。
-- docs/technical-design.md：已确定的实现方案和待验证事项。
-- docs/architecture.md：初始模块导航；真实代码建立后持续更新。
-- docs/plan.md：分阶段任务和第一阶段验收。
-- docs/progress.md：当前状态入口。
-- docs/handoff.md：当前接手信息。
+1. [AGENTS.md](AGENTS.md)：协作、数据和验证约定。
+2. [当前进度](docs/progress.md)与[交接](docs/handoff.md)：当前分支、验证及待验收项。
+3. [架构导航](docs/architecture.md)：按任务定位相关模块。
+4. [文档目录](docs/README.md)：按需查接口、部署及验证，不需通读全部历史。
 
-## 当前真实状态
-当前运行资料已按2026-11-07用户明确授权清理并替换为无旧标签的仿真业务场景，账号改名及只读核对见docs/workspace-scenario.md；勿将旧demo账号live脚本直接用于当前库，勿为恢复固定初始数量清除用户后续操作。
-2026-11-07更新：李玉杰已明确确认第四阶段及当前前端重构验收通过，并授权开始第五阶段。第五阶段本轮实现和验证完成，待用户验收；见docs/stage-five.md、docs/stage-five-verification.md、docs/deployment.md。下方旧待验收状态为历史。
-本目录起初只有开发输入。现已建立应用代码与既有GitHub仓库，第一、二、三阶段已由李玉杰验收，第四阶段已实现、完成本机部署和验证，待用户验收；当前状态以 docs/progress.md、docs/handoff.md 为准，启动入口改见 README.md。
-第四阶段执行清单见docs/stage-four.md，页面验收步骤及验证限制见docs/stage-four-verification.md；不自动进入第五阶段或部署公开服务。
-2026-11-07前端综合重构已按用户指定的prototypes/ai-talent-workspace-v1.html及最新反馈实施并验证，待用户验收；无需再制作一轮原型。当前使用与验证见docs/frontend-rebuild.md。
+## 需求依据
 
-## 文档优先级
-用户后续明确决定 > docs/decisions.md 中已确认的新决定 > 冻结 PRD > 技术设计与计划 > 原型参考。
-发现真实矛盾时记录具体条款与影响，请用户决策；普通字段命名和目录组织自行完成。
+用户后续明确决定 > [已确认决定](docs/decisions.md) > [冻结 PRD](docs/prd-v1.0-20261104.md) > 技术设计与计划 > 原型参考。
 
+第一至四阶段已验收，第五阶段及最新界面调整待用户验收。当前业务资料为虚构场景，数量会随操作改变；历史48人等数量是建场景时快照，不能为了匹配旧报告清空新增资料。已有环境不重新bootstrap/seed，不删除库、卷或模型。账号只在忽略的本机文件中查看。
+
+[CODEX_START.md](CODEX_START.md)提供接手提示，不能替代用户对新工作的授权。

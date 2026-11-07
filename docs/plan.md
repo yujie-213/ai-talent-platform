@@ -1,5 +1,7 @@
 # 开发阶段与验收计划
 
+本页保留分阶段计划和验收标准；当前任务不是从第一阶段重新开始。最新界面调整见[filter-task-adjustment](filter-task-adjustment.md)，当前状态见[progress](progress.md)。
+
 日期：2026-11-05。按依赖渐进完成；P0/P1 均属于最终 V1，不因分阶段而删减。
 第一至四阶段已由李玉杰验收；2026-11-07用户明确确认第四阶段（含当前前端重构）验收通过并授权开始第五阶段。第五阶段本轮实现和验证完成、待用户验收，执行见stage-five.md，精确结果及限制见stage-five-verification.md。
 

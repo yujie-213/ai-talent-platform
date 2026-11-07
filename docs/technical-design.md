@@ -1,9 +1,9 @@
 # 技术设计基线 V0.1
 
-日期：2026-11-05；状态：架构和业务规则已讨论确认，详细表/接口/依赖版本尚待实现前补齐。
-权威产品输入：冻结 PRD + docs/decisions.md。本文不宣称已经实现。
+设计日期：2026-11-05。本文为当时确认的设计基线；应用现已实现多模块业务。当前实现导航见[architecture](architecture.md)，数据和接口见[schema](schema.md)/[api](api.md)，状态见[progress](progress.md)。
+权威产品输入：冻结 PRD + docs/decisions.md。本文的设计条目不单独作为实现或验证证明。
 
-2026-11-05 实施补充：阶段一详细落表与接口已补入 schema.md / api.md；真实代码导航见 architecture.md，运行与验证状态见 progress.md / verification.md。本文其余部分保留完整 V1 设计基线，不将第二至第五阶段的设计当作已实现功能。
+2026-11-05 实施补充：阶段一详细落表与接口已补入 schema.md / api.md；真实代码导航见 architecture.md，运行与验证状态见 progress.md / verification.md。本文其余部分保留完整 V1 设计基线，各模块当前完成情况以后续实现与验证记录为准。
 
 ## 1. 架构和环境
 - 模块化单体、前后端分离。Vue 3/TypeScript/Element Plus；FastAPI；SQLAlchemy/Alembic/MySQL。

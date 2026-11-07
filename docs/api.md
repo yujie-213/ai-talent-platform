@@ -1,4 +1,19 @@
-# 阶段一 API
+# API 契约与权限
+## 当前接口补充（2026-11-07）
+
+本页按模块保留接口演进，OpenAPI `/docs` 为当前字段契约。下方阶段标题表示引入时间，不表示应用只实现该阶段。
+
+| 方法/路径 | 当前行为 | 权限/边界 |
+|---|---|---|
+| GET /candidates | 原有分页和条件增加`name`（最长50字符）；去首尾空格后姓名字面包含，`%`与`_`不扩展为通配符 | 当前talent.read；与其他条件取交集，requirement_id另查岗位读权 |
+| GET /tasks | `{items,total}`，每条增加`talent_name`、`file_name`、`parsed_at`；最近执行开始时间倒序，再按ID稳定排序，无时间置后 | 当前talent.read先过滤再分页；文件名另查file.read与Task/File当前归属；不可读为null |
+| GET /imports/summary | `{items:[{id,created_at,total,counts,names}]}`，最多50批；时间为该批各任务首次开始时间中的最晚值，无任务时间为null；names最多3条 | 本人导入且当前人才/文件读权内任务；上传即拒的本人记录计rejected；不是全公司导入统计 |
+| 聊天Scope.filters | 增加`name`，允许的筛选字段上限8项 | 列表与聊天共用candidate_filters，按最近成功应用条件固定范围 |
+
+解析数量是任务数量，不是去重人才数。`parsed_at`是开始时间，不是结束时间；API时间为UTC秒，当前页面转北京时间。任务重试沿用ID，最近Attempt时间决定位置，无需数据库新字段。
+
+## 基础接口
+
 
 前缀 /api；JWT 仅含 sub/exp，受保护请求重新查询账号、角色及授权。密码 PBKDF2-SHA256 随机盐，登录失败不透露账号是否存在。令牌默认 60 分钟。响应 {data, request_id}；错误 {error:{code,message},request_id}；HTTP 401/403/404/409/422/413。OpenAPI /docs 为完整字段契约。
 

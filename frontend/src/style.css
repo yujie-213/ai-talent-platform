@@ -113,7 +113,7 @@ p { line-height: 1.7; overflow-wrap: anywhere; }
 .el-card.is-always-shadow { box-shadow: var(--shadow); }
 .el-button--primary { background: var(--accent-gradient); border: 0; }
 .el-button--primary:hover, .el-button--primary:focus { background: var(--accent-gradient); opacity: .92; }
-.el-button--primary.is-disabled { background: var(--accent-gradient); opacity: .45; }
+.el-button--primary.is-disabled, .el-button--primary.is-disabled:hover { background: #e8ebf2; color: #a2a9b6; opacity: 1; }
 .el-card + .el-card { margin-top: 14px; }
 .el-card__header { padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .el-card__header h2 { margin: 0; }

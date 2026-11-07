@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Api } from './api'
 import CandidateTable from './CandidateTable.vue'
+import AppIcon from './AppIcon.vue'
 import type {Candidate} from './candidate'
 const props = defineProps<{api: Api; canImport: boolean;profileMode?:boolean;selfView?:boolean;title?:string;reloadToken?:number;canRequirements?:boolean;canChat?:boolean;departments?:{id:string;name?:string}[]}>()
 const emit = defineEmits<{open: [id: string]; task: [id: string];chat:[scope:{kind:'selected'|'filtered';ids?:string[];filters?:Record<string,string>},labels?:Record<string,string>]}>()
@@ -69,13 +70,23 @@ const loading=ref(false)
 let listRequest=0
 const input = ref<HTMLInputElement | null>(null)
 const uploads = ref<{name: string; state: string; id?: string}[]>([])
+// 选中的文件先进入暂存列表，用户确认后再统一上传；拖拽和文件选择框写同一个列表。
+const pickedFiles = ref<File[]>([])
+const dragging = ref(false)
+function setPicked(files: File[]) { pickedFiles.value = files.slice(0, 20) }
+function onPicked(event: Event) { setPicked(Array.from((event.target as HTMLInputElement).files || [])) }
+function pick() { input.value?.click() }
+function onDrop(event: DragEvent) { dragging.value = false; setPicked(Array.from(event.dataTransfer?.files || [])) }
+function removePicked(file: File) { pickedFiles.value = pickedFiles.value.filter(f => f !== file) }
+function clearPicked() { pickedFiles.value = []; if (input.value) input.value.value = '' }
+const sizeText = (bytes: number) => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 const batches = ref<string[]>([]), selectedBatch = ref('')
 const batchTasks = ref<{id:string;name:string;state:string;error_code:string|null}[]>([])
 const batchFailures = ref<{id:string;name:string;message:string}[]>([])
 let pendingUpload: {signature:string; batch:string; keys:string[]} | null = null
 function resetBatch() {
   pendingUpload=null; uploads.value=[]
-  if (input.value) input.value.value=''
+  clearPicked()
 }
 async function loadBatch() {
   if (!selectedBatch.value) return
@@ -99,7 +110,7 @@ async function load() {
   finally {if(request===listRequest)loading.value=false}
 }
 async function upload() {
-  const files = Array.from(input.value?.files || [])
+  const files = [...pickedFiles.value]
   if (!files.length || files.length > 20) { ElMessage.error('请选择1至20份简历'); return }
   busy.value = true
   const signature=JSON.stringify(files.map(file => [file.name,file.size,file.lastModified]))
@@ -113,13 +124,13 @@ async function upload() {
       uploads.value[i] = {name: file.name, state: '已接受，查看解析进度', id: task.id}
     } catch (error) { uploads.value[i]!.state = (error as Error).message }
   }
-  busy.value = false; selectedBatch.value=batch; await load(); await loadBatch()
+  busy.value = false; clearPicked(); selectedBatch.value=batch; await load(); await loadBatch()
 }
 watch(()=>props.reloadToken,()=>void load())
 onMounted(async()=>{void loadOverview();await load();if(props.canRequirements){try{let offset=0;const all:typeof requirements.value=[];while(true){const data=await props.api<{items:typeof requirements.value;total:number}>(`/requirements?offset=${offset}&limit=100`);all.push(...data.items);if(!data.items.length||all.length>=data.total)break;offset+=data.items.length}requirements.value=all}catch(error){ElMessage.error((error as Error).message)}}})
 </script>
 <template>
-  <div class="title-row"><div><h1>{{title||'简历筛选'}}</h1></div><div class="batch-actions"><slot name="actions"/><el-button v-if="canImport" type="primary" @click="activeTab='imports'">＋ 上传简历</el-button></div></div>
+  <div class="title-row"><div><h1>{{title||'简历筛选'}}</h1></div><div class="batch-actions"><slot name="actions"/><el-button v-if="canImport&&activeTab!=='imports'" type="primary" @click="activeTab='imports'">＋ 上传简历</el-button></div></div>
   <div v-if="overview" class="overview-strip" aria-label="授权范围概览">
     <div class="overview-stat"><span class="stat-label">授权人才</span><strong>{{(overview.people?.external||0)+(overview.people?.internal||0)}}</strong><span class="stat-note">外部 {{overview.people?.external||0}} · 内部 {{overview.people?.internal||0}}</span></div>
     <div class="overview-stat"><span class="stat-label">解析进行中</span><strong>{{(overview.parse_tasks?.queued||0)+(overview.parse_tasks?.running||0)}}</strong><span class="stat-note">排队 {{overview.parse_tasks?.queued||0}} · 执行 {{overview.parse_tasks?.running||0}}</span></div>
@@ -164,8 +175,49 @@ onMounted(async()=>{void loadOverview();await load();if(props.canRequirements){t
   </div><el-empty v-if="!loading&&!loadError&&!items.length" description="没有符合条件的人才，请调整筛选条件或导入简历"/>
   <el-pagination v-model:current-page="page" :total="total" :page-size="20" layout="total,prev,pager,next" @current-change="load"/>
   </div><details v-show="activeTab==='imports'" id="resume-import" class="import-section" open><summary>导入简历与逐文件进度</summary>
-  <el-card v-if="canImport" style="margin-top:20px"><h2>导入简历</h2><p>PDF / PNG / JPEG / DOCX；单份10 MiB，PDF最多50页，每批最多20份。图片最多2500万像素，DOCX解压最多50 MiB/1000条目。</p><p class="muted">单文件解析最多12万字符、500个文字片段、100张文档图片。超时或失败会明确提示，最多执行3次。</p><p class="muted">导入先建立“待解析”档案；身份疑似重复时保留核对，不自动合并。</p><input ref="input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.docx"/><el-button :loading="busy" @click="upload">上传并解析</el-button><el-button :disabled="busy" @click="resetBatch">新建另一批</el-button><p v-for="(item,i) in uploads" :key="i">{{item.name}}：{{item.state}} <el-button v-if="item.id" @click="emit('task',item.id)">进度与结果</el-button></p></el-card>
-  <el-card style="margin-top:20px"><h2>导入与解析批次</h2><el-select v-model="selectedBatch" placeholder="选择历史批次（最多50个）" style="width:400px" @change="loadBatch"><el-option v-for="batch in batches" :key="batch" :label="`导入批次 ${batches.length-batches.indexOf(batch)} · ${batch.slice(0,8)}`" :value="batch"/></el-select><el-button @click="loadBatch">刷新逐文件对账</el-button><p v-for="item in batchTasks" :key="item.id">{{item.name}} · {{item.state}} · {{item.error_code}} <el-button @click="emit('task',item.id)">查看</el-button></p><p v-for="item in batchFailures" :key="item.id">{{item.name}} · 上传失败：{{item.message}}</p></el-card>
+  <div v-if="canImport" class="upload-card">
+    <div class="upload-zone" :class="{dragging}" role="button" tabindex="0" aria-label="上传简历" @click="pick" @keydown.enter.prevent="pick" @dragover.prevent="dragging=true" @dragleave.prevent="dragging=false" @drop.prevent="onDrop">
+      <span class="upload-icon"><AppIcon name="file"/></span>
+      <p class="upload-title">拖拽简历到这里，或<em>点击选择文件</em></p>
+      <p class="upload-hint">PDF · PNG · JPEG · DOCX<span class="sep">·</span>单份 ≤ 10 MiB<span class="sep">·</span>每批 ≤ 20 份</p>
+      <input ref="input" class="upload-input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.docx" aria-label="选择简历文件" @change="onPicked"/>
+    </div>
+
+    <div v-if="pickedFiles.length" class="picked">
+      <div class="picked-head"><strong>已选 {{pickedFiles.length}} 份</strong><button type="button" class="link-btn" @click.stop="clearPicked">清空</button></div>
+      <div v-for="(file,i) in pickedFiles" :key="i" class="picked-row">
+        <span class="picked-badge"><AppIcon name="file"/></span>
+        <span class="picked-name">{{file.name}}</span>
+        <span class="picked-size">{{sizeText(file.size)}}</span>
+        <button type="button" class="picked-remove" :aria-label="'移除 '+file.name" @click.stop="removePicked(file)">×</button>
+      </div>
+    </div>
+
+    <div class="upload-actions">
+      <el-button type="primary" :loading="busy" :disabled="!pickedFiles.length" @click="upload">上传并解析</el-button>
+      <el-button :disabled="busy" @click="resetBatch">新建另一批</el-button>
+      <span class="upload-count">{{pickedFiles.length?`待解析 ${pickedFiles.length} 份`:'尚未选择文件'}}</span>
+    </div>
+
+    <div v-if="uploads.length" class="upload-results">
+      <div v-for="(item,i) in uploads" :key="i" class="result-row">
+        <span class="state-dot" :class="item.id?'ok':item.state.includes('等待')?'wait':'err'"/>
+        <span class="result-name">{{item.name}}</span>
+        <span class="result-state">{{item.state}}</span>
+        <el-button v-if="item.id" link type="primary" @click="emit('task',item.id)">进度与结果</el-button>
+      </div>
+    </div>
+
+    <details class="upload-rules"><summary>导入规则与限制</summary><ul><li>单份文件 ≤ 10 MiB，PDF 最多 50 页，每批最多 20 份</li><li>图片最多 2500 万像素；DOCX 解压后 ≤ 50 MiB 且 ≤ 1000 个条目</li><li>单文件解析最多 12 万字符、500 个文字片段、100 张文档图片</li><li>超时或失败会明确提示，单文件最多执行 3 次</li><li>导入先建立「待解析」档案；身份疑似重复时保留核对，不自动合并</li></ul></details>
+  </div>
+
+  <el-card class="batch-card">
+    <template #header><div class="batch-head"><h2>导入与解析批次</h2><el-button link type="primary" @click="loadBatch">刷新逐文件对账</el-button></div></template>
+    <el-select v-model="selectedBatch" placeholder="选择历史批次（最多 50 个）" class="batch-select" @change="loadBatch"><el-option v-for="batch in batches" :key="batch" :label="`导入批次 ${batches.length-batches.indexOf(batch)} · ${batch.slice(0,8)}`" :value="batch"/></el-select>
+    <div v-for="item in batchTasks" :key="item.id" class="result-row"><span class="state-dot" :class="item.state==='succeeded'?'ok':item.state==='failed'?'err':'wait'"/><span class="result-name">{{item.name}}</span><span class="result-state">{{item.state}}<template v-if="item.error_code"> · {{item.error_code}}</template></span><el-button link type="primary" @click="emit('task',item.id)">查看</el-button></div>
+    <p v-for="item in batchFailures" :key="item.id" class="fail-line">{{item.name}} · 上传失败：{{item.message}}</p>
+    <p v-if="!selectedBatch&&!batchTasks.length&&!batchFailures.length" class="batch-hint">选择历史批次后，这里显示逐文件解析结果与失败原因。</p>
+  </el-card>
 </details>
 </template>
 
@@ -212,6 +264,50 @@ onMounted(async()=>{void loadOverview();await load();if(props.canRequirements){t
 .candidate-results :deep(.el-table){margin:0}
 .import-section{margin-top:16px}
 .import-section>summary{font-weight:600}
+/* ---------- 导入区：一个主操作 + 拖拽区，限制条款收进折叠 ---------- */
+.upload-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-top:16px}
+.upload-zone{display:flex;flex-direction:column;align-items:center;gap:8px;padding:26px 16px;border:1.5px dashed #c3cad8;border-radius:12px;background:var(--surface);cursor:pointer;text-align:center;transition:border-color .15s,background .15s}
+.upload-zone:hover,.upload-zone.dragging{border-color:var(--accent);background:var(--accent-soft)}
+.upload-zone.dragging{border-style:solid}
+.upload-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--surface);color:var(--accent);box-shadow:var(--shadow)}
+.upload-icon :deep(svg){width:20px;height:20px}
+.upload-title{margin:0;font-size:14px;font-weight:550;color:var(--text)}
+.upload-title em{font-style:normal;color:var(--accent);font-weight:600}
+.upload-hint{margin:0;font-size:12px;color:var(--text-tertiary)}
+.upload-hint .sep{margin:0 6px;color:var(--border-strong)}
+.upload-input{display:none}
+.picked{margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.picked-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--surface-muted);font-size:12px}
+.picked-head strong{font-weight:600;color:var(--text)}
+.link-btn{border:0;background:transparent;color:var(--accent);font-size:12px;cursor:pointer;padding:0}
+.picked-row{display:flex;align-items:center;gap:9px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px}
+.picked-badge{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex-shrink:0}
+.picked-badge :deep(svg){width:14px;height:14px}
+.picked-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.picked-size{font-size:12px;color:var(--text-tertiary);flex-shrink:0}
+.picked-remove{border:0;background:transparent;color:var(--text-tertiary);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;border-radius:4px}
+.picked-remove:hover{color:var(--el-color-danger)}
+.upload-actions{display:flex;align-items:center;gap:10px;margin-top:14px}
+.upload-count{font-size:12px;color:var(--text-tertiary)}
+.upload-results{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.result-row{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px}
+.result-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-state{font-size:12px;color:var(--text-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.state-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--border-strong)}
+.state-dot.ok{background:#1a9e6f}
+.state-dot.wait{background:#d99426}
+.state-dot.err{background:#c0393f}
+.upload-rules{margin-top:12px;font-size:12px;color:var(--text-secondary)}
+.upload-rules>summary{cursor:pointer;color:var(--text-tertiary);font-size:12px;width:fit-content}
+.upload-rules>summary:hover{color:var(--accent)}
+.upload-rules ul{margin:8px 0 0;padding-left:18px}
+.upload-rules li{line-height:1.9}
+.batch-card{margin-top:14px}
+.batch-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.batch-head h2{margin:0;font-size:14px}
+.batch-select{width:400px;max-width:100%}
+.fail-line{margin:6px 0 0;font-size:12px;color:var(--el-color-danger)}
+.batch-hint{margin:10px 0 0;font-size:12px;color:var(--text-tertiary)}
 .resume-tabs{margin-bottom:4px}
 @media(max-width:1150px){.filter-search{flex-basis:100%;max-width:none}.filter-item{width:calc(50% - 4px)}.candidate-results{overflow-x:auto}.overview-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:900px){.overview-strip{grid-template-columns:1fr 1fr}.overview-stat:last-child{grid-column:1/-1}}

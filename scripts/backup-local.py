@@ -113,16 +113,28 @@ def restore_test(folder):
                 host='127.0.0.1', port=13306, database=database).render_as_string(hide_password=False)
             environment['FILE_ROOT'] = str(target / 'files')
             environment['PYTHONPATH'] = str(ROOT / 'backend')
-            cursor.execute(f'SELECT username FROM `{database}`.users WHERE enabled=1 AND username IN (%s,%s)',
-                ('zhou.yan','demo.hr'))
-            available = {row[0] for row in cursor.fetchall()}
-            username = 'zhou.yan' if 'zhou.yan' in available else 'demo.hr' if 'demo.hr' in available else None
-            credentials = {line.split(': ',1)[0]:line.split(': ',1)[1]
-                for line in (ROOT/'data/local-access.txt').read_text(encoding='utf-8').splitlines() if ': ' in line}
-            password = credentials.get(username) if username else None
-            if username == 'demo.hr' and not password:
-                # 本轮仅改登录名、保留原密码，故当前凭据也可验证替换前的备份。
-                password = credentials.get('demo.hr / demo.employee') or credentials.get('zhou.yan')
+            cursor.execute(f'SELECT username,password_hash FROM `{database}`.users WHERE enabled=1 AND username IN (%s,%s,%s)',
+                ('liyujie','zhou.yan','demo.hr'))
+            available = dict(cursor.fetchall())
+            # 改名/改密前的本机凭据保存在忽略目录；只选与恢复库哈希匹配的密码。
+            from app.core.security import verify_password
+            credential_files = [ROOT/'data/local-access.txt', *sorted((ROOT/'data/account-history').glob('*.txt'),reverse=True)]
+            username = password = None
+            for candidate in ('liyujie','zhou.yan','demo.hr'):
+                if candidate not in available:
+                    continue
+                for credential_file in credential_files:
+                    credentials = {line.split(': ',1)[0]:line.split(': ',1)[1]
+                        for line in credential_file.read_text(encoding='utf-8').splitlines() if ': ' in line}
+                    for key in (candidate,'demo.hr / demo.employee','zhou.yan','liyujie'):
+                        value = credentials.get(key)
+                        if value and verify_password(value,available[candidate]):
+                            username,password=candidate,value
+                            break
+                    if password:
+                        break
+                if password:
+                    break
             if not username or not password:
                 raise RuntimeError('RESTORE_LOCAL_CREDENTIAL_MISSING')
             environment['RESTORE_CHECK_USERNAME'] = username

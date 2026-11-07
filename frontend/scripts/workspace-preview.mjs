@@ -2,6 +2,7 @@
 import {chromium,expect} from '@playwright/test'
 import {readFile,mkdir,writeFile} from 'node:fs/promises'
 const state=JSON.parse(await readFile('../data/workspace/installed.json','utf8'))
+const hrLogin=state.primary_hr_login||'zhou.yan'
 if(!state.complete)throw Error('资料尚未补齐')
 const accounts=Object.fromEntries((await readFile('../data/local-access.txt','utf8')).split(/\r?\n/).filter(s=>s.includes(': ')).map(s=>[s.slice(0,s.indexOf(': ')),s.slice(s.indexOf(': ')+2)]))
 const browser=await chromium.launch({channel:'msedge',headless:true}),errors=[],checks=[]
@@ -14,12 +15,12 @@ async function login(username){
  const response=await authenticated;expect(response.status()).toBe(200)
  await expect(page.getByRole('heading',{name:/^(工作台|我的工作台|管理工作台)$/})).toBeVisible()
  expect((await loaded).status()).toBe(200)
- if(username!=='admin')await expect(page.locator('.overview-stats strong').first()).toHaveText(username==='zhou.yan'?'48':'1')
+ if(username!=='admin')await expect(page.locator('.overview-stats strong').first()).toHaveText(username===hrLogin?'48':'1')
  return {context,page,token:(await response.json()).data.token}
 }
 async function clean(page){expect(await page.locator('body').innerText()).not.toMatch(/合成|测试|演示|示例|demo\.|synthetic/i)}
 try{
- const hr=await login('zhou.yan'),p=hr.page,nav=name=>p.getByRole('navigation',{name:'主导航'}).getByRole('button',{name,exact:true})
+ const hr=await login(hrLogin),p=hr.page,nav=name=>p.getByRole('navigation',{name:'主导航'}).getByRole('button',{name,exact:true})
  await expect(p.locator('.overview-stats button').filter({hasText:'有效岗位'}).locator('strong')).toHaveText('5')
  await clean(p);await p.screenshot({path:'../data/workspace/screens/工作台.png',fullPage:true})
  await nav('简历筛选').click();await expect(p.locator('.candidate-table .el-table__body tr')).toHaveCount(20);await expect(p.getByText('共 36 人',{exact:true})).toBeVisible();await clean(p)
@@ -39,7 +40,7 @@ try{
  await employee.page.screenshot({path:'../data/workspace/screens/员工测评.png',fullPage:true});checks.push('员工有已完成与待参与测评')
  await employee.context.close()
  const admin=await login('admin');await admin.page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:'系统管理',exact:true}).click()
- await expect(admin.page.getByText('zhou.yan',{exact:true})).toBeVisible();await clean(admin.page)
+ await expect(admin.page.getByText(hrLogin,{exact:true})).toBeVisible();await clean(admin.page)
  await admin.page.screenshot({path:'../data/workspace/screens/账号.png',fullPage:true});checks.push('管理员账号/角色/绑定为新资料')
  await admin.context.close()
  if(errors.length)throw Error(errors.join('\n'))

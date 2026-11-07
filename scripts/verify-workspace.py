@@ -19,6 +19,7 @@ from app.services.assessments import calculate
 def main():
     folder=ROOT/'data/workspace'
     state=json.loads((folder/'installed.json').read_text(encoding='utf-8'))
+    hr_login=state.get('primary_hr_login','zhou.yan')
     assert state.get('complete'),'POPULATION_NOT_COMPLETE'
     deadline=time.monotonic()+240
     while time.monotonic()<deadline:
@@ -58,12 +59,12 @@ def main():
         for line in (ROOT/'data/local-access.txt').read_text(encoding='utf-8').splitlines() if ': ' in line}
     tokens={}
     with httpx.Client(base_url='http://127.0.0.1:5173/api',timeout=30,trust_env=False) as client:
-        for name,expected in [('admin',0),('zhou.yan',48),('chen.yu',1),('luo.chen',2)]:
+        for name,expected in [('admin',0),(hr_login,48),('chen.yu',1),('luo.chen',2)]:
             response=client.post('/auth/login',json={'username':name,'password':access[name]});response.raise_for_status()
             token=response.json()['data']['token'];tokens[name]=token
             profile=client.get('/candidates?limit=100',headers={'Authorization':'Bearer '+token});profile.raise_for_status()
             assert profile.json()['data']['total']==expected
-        h={'Authorization':'Bearer '+tokens['zhou.yan']}
+        h={'Authorization':'Bearer '+tokens[hr_login]}
         for name,task_id in state['source_tasks'].items():
             response=client.get('/tasks/'+task_id,headers=h);response.raise_for_status()
             file_id=response.json()['data']['file_id']

@@ -5,7 +5,39 @@ import PersonAvatar from './PersonAvatar.vue'
 import ScoreRing from './ScoreRing.vue'
 defineProps<{items:Candidate[];selected:string[];canChat?:boolean}>()
 const emit=defineEmits<{open:[id:string];toggle:[id:string];selectPage:[checked:boolean]}>()
-const text=(p:Candidate,category:string)=>p.tags.filter(t=>t.category===category).map(t=>t.content).join('；')
+// 教育事实形如「2015年9月 - 2019年6月  苏州大学  软件工程  本科毕业」。
+// 列表需要的不是原文，而是「学历 / 院校 / 专业」三个可比较的短字段，因此在这里做一次结构化提取。
+const DEGREE_RANK:Record<string,number>={博士:5,硕士:4,本科:3,大专:2,中专:1,高中:0}
+interface Education{degree:string;school:string;major:string}
+function education(p:Candidate):Education|null{
+  let best:(Education&{rank:number})|null=null
+  for(const tag of p.tags){
+    if(tag.category!=='education')continue
+    const content=tag.content.replace(/\s+/g,' ').trim()
+    const degree=(content.match(/博士|硕士|本科|大专|中专|高中/)||[''])[0]
+    const rest=content.split(' ').filter(v=>v&&!/^\d{4}\s*年/.test(v)&&!/^[-–—~至]$/.test(v)&&v!=='至今')
+    const school=rest.find(v=>/(大学|学院|学校|中学)/.test(v))||rest[0]||''
+    const major=rest.find(v=>v!==school&&!/(毕业|在读|结业|肄业)/.test(v))||''
+    // 多条教育经历时取最高学历，避免把本科在读的旧记录顶掉硕士。
+    const rank=degree?DEGREE_RANK[degree]??0:0
+    if(!best||rank>best.rank)best={degree,school,major,rank}
+  }
+  return best
+}
+// 工作年限优先取事实里已有的「总工作经验N年」；没有时用最早一段经历的年份推算，不凭空取值。
+function experienceYears(p:Candidate):number|null{
+  let earliest:number|null=null
+  for(const tag of p.tags){
+    if(tag.category!=='experience')continue
+    const stated=tag.content.match(/总工作经验\s*(\d+)\s*年/)
+    if(stated)return Number(stated[1])
+    for(const m of tag.content.matchAll(/(\d{4})\s*年/g)){
+      const year=Number(m[1])
+      if(!earliest||year<earliest)earliest=year
+    }
+  }
+  return earliest?Math.max(0,new Date().getFullYear()-earliest):null
+}
 // 技能事实有两种写法：一条是「Python、FastAPI、MySQL」的列举，一条是「Python开发经验3年，……」的整句。
 // 取第一个分句，再按顿号拆分，能同时覆盖两种写法，也不会把整句描述塞进标签。
 function skills(p:Candidate){
@@ -38,8 +70,8 @@ const groupTypes:Record<string,string>={pass:'success',unknown:'warning',fail:'d
       <template #default="{row}"><el-checkbox :aria-label="'选择'+row.name" :model-value="selected.includes(row.id)" @click.stop @change="emit('toggle',row.id)"/></template>
     </el-table-column>
     <el-table-column label="人才" min-width="176"><template #default="{row}"><div class="person-cell"><PersonAvatar :name="row.name" :size="36"/><div class="person-text"><button class="person-name" @click.stop="emit('open',row.id)">{{row.name}}</button><div class="person-meta"><span>{{row.kind==='internal'?'内部员工':'外部候选人'}}</span><el-tag v-if="row.quality&&!['complete','manual'].includes(row.quality)" type="warning" size="small">{{qualityName[row.quality]||'待核对'}}</el-tag></div></div></div></template></el-table-column>
-    <el-table-column label="履历摘要" min-width="226"><template #default="{row}"><p class="digest-line">{{text(row,'education')||'教育未记录'}}</p><p class="digest-line digest-muted">{{text(row,'experience')||'经历未记录'}}</p></template></el-table-column>
-    <el-table-column label="核心技能" min-width="210"><template #default="{row}"><div class="skill-list"><span v-for="(s,i) in skills(row).slice(0,4)" :key="i" class="skill-chip" :class="skillTone(s)">{{s}}</span><span v-if="skills(row).length>4" class="skill-rest">+{{skills(row).length-4}}</span><span v-if="!skills(row).length" class="empty-hint">未记录</span></div></template></el-table-column>
+    <el-table-column label="学历 / 经验" min-width="184"><template #default="{row}"><div class="edu-cell"><div class="edu-line"><span v-if="education(row)?.degree" class="edu-degree">{{education(row)!.degree}}</span><span v-else class="empty-hint">学历未记录</span><span v-if="experienceYears(row)!=null" class="edu-years">{{experienceYears(row)}} 年经验</span></div><p class="edu-school">{{[education(row)?.school,education(row)?.major].filter(Boolean).join(' · ')||'院校未记录'}}</p></div></template></el-table-column>
+    <el-table-column label="核心技能" min-width="208"><template #default="{row}"><div class="skill-list"><span v-for="(s,i) in skills(row).slice(0,3)" :key="i" class="skill-chip" :class="skillTone(s)">{{s}}</span><span v-if="skills(row).length>3" class="skill-rest">+{{skills(row).length-3}}</span><span v-if="!skills(row).length" class="empty-hint">未记录</span></div></template></el-table-column>
     <el-table-column label="应聘岗位 / 匹配" min-width="234"><template #default="{row}"><div v-for="r in row.requirements||[]" :key="r.requirement_id" class="linked-requirement"><ScoreRing :score="r.score" :size="36"/><div class="requirement-text"><div class="requirement-line"><strong>{{r.title}}</strong><span v-if="r.stale||r.requirement_status!=='active'" class="requirement-flag">历史参考</span></div><div class="requirement-meta"><el-tag :type="groupTypes[r.group||r.state]||'info'" size="small">{{groupNames[r.group||r.state]||'尚无匹配'}}</el-tag><span v-if="r.created_at">{{new Date(r.created_at*1000).toLocaleDateString()}}</span></div></div></div><span v-if="!row.requirements?.length" class="empty-hint">未关联应聘岗位</span></template></el-table-column>
     <el-table-column width="78" fixed="right"><template #default="{row}"><el-button link type="primary" class="row-action" @click.stop="emit('open',row.id)">查看画像</el-button></template></el-table-column>
   </el-table>
@@ -52,15 +84,18 @@ const groupTypes:Record<string,string>={pass:'success',unknown:'warning',fail:'d
 .person-name{border:0;background:transparent;color:var(--text);font-weight:600;cursor:pointer;padding:0;font-size:14px;text-align:left;line-height:1.4}
 .person-name:hover{color:var(--accent)}
 .person-meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-tertiary)}
-.digest-line{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin:0;font-size:13px;line-height:1.6;color:var(--text)}
-.digest-muted{margin-top:2px;font-size:12px;color:var(--text-secondary)}
-.skill-list{display:flex;flex-wrap:wrap;gap:4px;align-items:center;max-height:56px;overflow:hidden}
-.skill-chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;line-height:1;white-space:nowrap;flex-shrink:0}
+.edu-cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+.edu-line{display:flex;align-items:center;gap:8px;min-width:0}
+.edu-degree{display:inline-flex;align-items:center;height:21px;padding:0 7px;border-radius:5px;background:var(--surface-muted);border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;flex-shrink:0}
+.edu-years{font-size:12px;color:var(--text-secondary);white-space:nowrap}
+.edu-school{margin:0;font-size:12px;line-height:1.5;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skill-list{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;overflow:hidden}
+.skill-chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;line-height:1;white-space:nowrap;flex-shrink:0;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .skill-chip.tone-lang{background:#e8efff;color:#2f5bea}
 .skill-chip.tone-frame{background:#e0f4f1;color:#0f766e}
 .skill-chip.tone-data{background:#f1e9fd;color:#7440c4}
 .skill-chip.tone-other{background:var(--surface-muted);color:var(--text-secondary)}
-.skill-rest{font-size:12px;color:var(--text-tertiary)}
+.skill-rest{font-size:12px;color:var(--text-tertiary);flex-shrink:0;white-space:nowrap}
 .empty-hint{font-size:12px;color:var(--text-tertiary)}
 .linked-requirement{display:flex;align-items:center;gap:10px;min-width:0}
 .linked-requirement+.linked-requirement{margin-top:8px}

@@ -16,7 +16,9 @@
     "test:jd-assist": "node scripts/jd-assist.mjs",
     "test:stage-three-live": "node scripts/stage-three-live.mjs",
     "test:year-review-live": "node scripts/year-review-live.mjs",
-    "test:resume-live": "node scripts/resume-live.mjs"
+    "test:resume-live": "node scripts/resume-live.mjs",
+    "test:frontend-rebuild": "node scripts/frontend-rebuild-review.mjs",
+    "test:frontend-rebuild-live": "node scripts/frontend-rebuild-live.mjs"
   },
   "dependencies": {
     "element-plus": "2.9.1",

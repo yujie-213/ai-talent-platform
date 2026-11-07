@@ -1,67 +1,19 @@
-import { chromium, expect } from '@playwright/test'
-import { readFile, mkdir } from 'node:fs/promises'
-const credentials = await readFile('../data/local-access.txt', 'utf8')
-const adminPassword = credentials.match(/^admin: (.+)$/m)?.[1]
-const demoPassword = credentials.match(/^demo.hr \/ demo.employee: (.+)$/m)?.[1]
-if (!adminPassword || !demoPassword) throw new Error('需要先初始化本机合成账号')
-const browser = await chromium.launch({ channel: 'msedge', headless: true })
-const failures = []
-try {
-  for (const [username, password] of [['demo.hr', demoPassword], ['demo.employee', demoPassword], ['admin', adminPassword]]) {
-    const context = await browser.newContext({ viewport: {width:1440,height:1000} })
-    const page = await context.newPage()
-    page.on('pageerror', e => failures.push(e.message))
-    await page.goto('http://127.0.0.1:5173')
-    await page.locator('input').nth(0).fill(username)
-    await page.locator('input').nth(1).fill(password)
-    await page.getByRole('button', {name:'登录',exact:true}).click()
-    await page.getByRole('heading', {name:'工作台',exact:true}).waitFor()
-    if(username!=='admin'){await page.getByRole('button', {name:'人才档案',exact:true}).click();await page.getByRole('heading', {name:'人才档案',exact:true}).waitFor()}
-    if (username === 'demo.hr') {
-      await page.getByRole('button', {name:'新建人才',exact:true}).click()
-      const drawer = page.locator('.talent-drawer')
-      await drawer.locator('input').nth(0).fill('浏览器合成候选人')
-      await drawer.getByRole('button', {name:'添加事实',exact:true}).click()
-      await drawer.locator('textarea').fill('合成 Python 技能声明')
-      await drawer.getByRole('button', {name:'保存档案',exact:true}).click()
-      await drawer.getByRole('heading', {name:'来源文件',exact:true}).waitFor()
-      await drawer.getByRole('button', {name:'编辑',exact:true}).click()
-      await drawer.locator('input').nth(0).fill('浏览器合成候选人（已编辑）')
-      await drawer.getByRole('button', {name:'保存档案',exact:true}).click()
-      await drawer.getByRole('heading', {name:'来源文件',exact:true}).waitFor()
-      await drawer.getByRole('button', {name:/Close this dialog|关闭此对话框/,exact:true}).click()
-      await drawer.waitFor({state:'hidden'})
-      await mkdir('../data/screenshots', {recursive:true})
-      await page.locator('.app-header').screenshot({path:'../data/screenshots/hr-workspace.png'})
-      // 真实 API + MySQL + Linux Worker：上传合成图片并从创建响应直达任务详情。
-      await page.locator('.el-table__body tbody tr').filter({hasText:'浏览器合成候选人（已编辑）'}).first().click()
-      await drawer.locator('input[type=file]').setInputFiles({name:'synthetic-browser.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAADElEQVR4nGNgGB4AAADIAAGtQHYiAAAAAElFTkSuQmCC','base64')})
-      await drawer.getByRole('button',{name:'上传',exact:true}).click()
-      const fileRow = drawer.locator('.file-row').filter({hasText:'synthetic-browser.png'}).last()
-      const createdResponse = page.waitForResponse(response => response.url().endsWith('/test-tasks') && response.request().method() === 'POST')
-      await fileRow.getByRole('button',{name:'测试成功',exact:true}).click()
-      const created = (await (await createdResponse).json()).data
-      await expect(drawer).toBeHidden()
-      await expect(page.getByTestId('focused-task-id')).toHaveText(created.id)
-      await expect(page.getByTestId('task-detail')).toContainText('仅测试任务机制：未执行 OCR 或字段抽取',{timeout:20000})
-      await page.screenshot({path:'../data/screenshots/task-detail.png',fullPage:true})
-    }
-    if (username === 'demo.employee') {
-      await expect(page.locator('.el-table__body tbody tr')).toHaveCount(1)
-      if (await page.getByRole('button', {name:'新建人才',exact:true}).count()) throw new Error('员工出现未授权入口')
-    }
-    if (username === 'admin') {
-      await page.getByRole('button', {name:'账号管理',exact:true}).click()
-      await page.getByRole('heading', {name:'账号管理',exact:true}).waitFor()
-      await page.getByRole('button', {name:'基础资料',exact:true}).click()
-      await page.getByRole('heading', {name:'基础资料',exact:true}).waitFor()
-      await page.getByRole('button', {name:'操作审计',exact:true}).click()
-      await page.getByRole('heading', {name:'操作审计与 AI 调用记录',exact:true}).waitFor()
-    }
-    await context.close()
-    console.log(username + ': browser smoke passed')
-  }
-  if (failures.length) throw new Error('页面异常: ' + failures.join('; '))
-} finally {
-  await browser.close()
-}
+// 真实页面/API/MySQL/Worker。仅创建合成档案与合成图片；机制任务明确不测 OCR。
+import {chromium,expect} from '@playwright/test'
+import {readFile,mkdir} from 'node:fs/promises'
+const credentials=await readFile('../data/local-access.txt','utf8'),adminPassword=credentials.match(/^admin: (.+)$/m)?.[1],demoPassword=credentials.match(/^demo.hr \/ demo.employee: (.+)$/m)?.[1]
+if(!adminPassword||!demoPassword)throw Error('缺少既有本机合成账号')
+const browser=await chromium.launch({channel:'msedge',headless:true}),errors=[]
+try{for(const [name,password] of [['demo.hr',demoPassword],['demo.employee',demoPassword],['admin',adminPassword]]){
+ const context=await browser.newContext({viewport:{width:1440,height:900}}),p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto('http://127.0.0.1:5173');await p.locator('input').nth(0).fill(name);await p.locator('input').nth(1).fill(password);const login=p.waitForResponse(r=>r.url().endsWith('/auth/login'));await p.getByRole('button',{name:'登录',exact:true}).click();const token=(await(await login).json()).data.token;await expect(p.getByRole('heading',{name:name==='admin'?'管理工作台':name==='demo.employee'?'我的工作台':'工作台',exact:true})).toBeVisible()
+ const nav=label=>p.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:label,exact:true})
+ if(name==='demo.hr'){
+  await nav('人才画像').click();await p.getByRole('button',{name:'新建人才',exact:true}).click();const profile=p.locator('.profile-workspace');await profile.locator('.el-form-item').filter({has:p.getByText('姓名',{exact:true})}).locator('input').fill('合成重构冒烟-'+Date.now());await profile.getByRole('button',{name:'添加事实',exact:true}).click();await profile.locator('textarea').fill('合成 Python 技能声明');const created=p.waitForResponse(r=>r.url().endsWith('/talents')&&r.request().method()==='POST');await profile.getByRole('button',{name:'保存档案',exact:true}).click();const person=(await(await created).json()).data;await expect(profile.getByRole('button',{name:'编辑档案',exact:true})).toBeVisible();await profile.getByRole('button',{name:'编辑档案',exact:true}).click();await profile.getByRole('button',{name:'移除',exact:true}).click();const saved=p.waitForResponse(r=>r.url().endsWith('/talents/'+person.id)&&r.request().method()==='PUT');await profile.getByRole('button',{name:'保存档案',exact:true}).click();const empty=(await(await saved).json()).data;expect(empty.facts).toHaveLength(0)
+  await profile.getByRole('tab',{name:'来源文件',exact:true}).click();const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAADElEQVR4nGNgGB4AAADIAAGtQHYiAAAAAElFTkSuQmCC','base64');await profile.locator('input[type=file]').setInputFiles({name:'synthetic-rebuild.png',mimeType:'image/png',buffer:bytes});const uploaded=p.waitForResponse(r=>r.url().endsWith('/files')&&r.request().method()==='POST');await profile.getByRole('button',{name:'上传',exact:true}).click();const file=(await(await uploaded).json()).data;const row=profile.locator('.file-row').filter({hasText:'synthetic-rebuild.png'});const downloading=p.waitForEvent('download');await row.getByRole('button',{name:'下载',exact:true}).click();const download=await downloading;expect(await readFile(await download.path())).toEqual(bytes)
+  // 工程机制测试通过 API 发起，正常 HR 页面不再暴露测试按钮。
+  const accepted=await context.request.post('http://127.0.0.1:8000/api/files/'+file.id+'/test-tasks',{headers:{Authorization:'Bearer '+token,'Idempotency-Key':crypto.randomUUID()},data:{mode:'success'}});expect(accepted.status()).toBe(202);const task=(await accepted.json()).data;await expect.poll(async()=>{const r=await context.request.get('http://127.0.0.1:8000/api/tasks/'+task.id,{headers:{Authorization:'Bearer '+token}});return (await r.json()).data.state},{timeout:30000}).toBe('succeeded');const r=await context.request.get('http://127.0.0.1:8000/api/tasks/'+task.id,{headers:{Authorization:'Bearer '+token}});expect((await r.json()).data.result).toContain('未执行 OCR 或字段抽取');await profile.getByRole('button',{name:'← 返回人才列表',exact:true}).click();await nav('解析任务').click();await expect(p.getByTestId('task-pagination')).toBeVisible()
+ }
+ if(name==='demo.employee'){await nav('我的档案').click();await expect(p.locator('.candidate-table .el-table__body tr')).toHaveCount(1);await expect(nav('简历筛选')).toHaveCount(0);await expect(nav('系统管理')).toHaveCount(0);await expect(p.getByRole('button',{name:'新建人才',exact:true})).toHaveCount(0)}
+ if(name==='admin'){await expect(nav('人才画像')).toHaveCount(0);await nav('系统管理').click();for(const label of ['账号管理','角色与菜单权限','基础资料','操作审计']){await p.getByRole('navigation',{name:'系统管理分区'}).getByRole('button',{name:label,exact:true}).click();await expect(p.getByRole('heading',{name:label==='操作审计'?'操作审计与 AI 调用记录':label,exact:true})).toBeVisible()}}
+ await context.close();console.log(name+': 真实工作区冒烟通过')
+}if(errors.length)throw Error(errors.join('\n'))}finally{await browser.close()}

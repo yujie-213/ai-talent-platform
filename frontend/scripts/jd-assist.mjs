@@ -32,12 +32,13 @@ await page.route('**/api/**',async route=>{
 })
 const findInput=(label)=>page.locator('.el-form-item').filter({has:page.locator('.el-form-item__label').filter({hasText:label})}).locator('input,textarea').first()
 try {
-  await page.goto(process.env.FRONTEND_URL||'http://127.0.0.1:5175')
+  await page.goto(process.env.FRONTEND_URL||'http://127.0.0.1:5173')
   await page.locator('input').nth(0).fill('synthetic.hr')
   await page.locator('input').nth(1).fill('synthetic-ui-password')
   await page.getByRole('button',{name:'登录',exact:true}).click()
-  await page.getByRole('button',{name:'岗位需求',exact:true}).click()
+  await page.getByRole('button',{name:'岗位与匹配',exact:true}).click()
   await page.getByRole('cell',{name:'人工岗位名称',exact:true}).click()
+  await page.getByRole('tab',{name:'编辑 / JD 辅助',exact:true}).click()
   const jd=page.locator('[data-testid="jd-source"] textarea, textarea[data-testid="jd-source"]')
   const title=findInput(/^需求名称$/), responsibilities=findInput(/^岗位职责$/), location=findInput(/^工作地点/)
   await jd.fill('合成JD：模型岗位名称。北京。开发Python服务。必备Python。')
@@ -84,9 +85,9 @@ try {
   // 关闭表单后到达的模型结果不能重开旧需求。
   await page.getByRole('button',{name:'AI辅助完善',exact:true}).click()
   await expect.poll(()=>requestCount).toBe(4)
-  await page.locator('.el-dialog__headerbtn').click()
+  await page.getByRole('button',{name:'← 返回岗位列表',exact:true}).click();await page.getByRole('button',{name:'放弃修改并返回',exact:true}).click()
   pending({suggestions:[{field:'description',value:'迟到建议',quote:'',source:'proposal'}],issues:[]})
-  await expect(page.locator('.el-dialog')).toBeHidden()
+  await expect(page.locator('.job-workspace-detail')).toHaveCount(0)
   if(errors.length)throw new Error(errors.join('; '))
   console.log('JD UI passed: automatic paste extraction, safe merge, manual edits during inference, explicit adoption, source save, failure fallback, late response (synthetic API).')
 } finally {await context.close();await browser.close()}

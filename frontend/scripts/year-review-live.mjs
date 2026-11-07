@@ -19,7 +19,7 @@ try{
   const historic=await(await context.request.get('http://127.0.0.1:8000/api/matches/'+old.run_id,{headers})).json()
   if(!historic.data.rules_stale)throw new Error('测试需要旧规则合成记录')
   await page.getByRole('heading',{name:'工作台',exact:true}).waitFor()
-  await page.getByRole('button',{name:'岗位需求',exact:true}).click()
+  await page.getByRole('button',{name:'岗位与匹配',exact:true}).click()
   await expect(page.locator('.el-table__body tbody tr').first()).toBeVisible()
   const target=page.getByRole('cell',{name:requirement.data.draft.title,exact:true})
   for(let i=0;i<20&&!(await target.count());i++){
@@ -30,7 +30,7 @@ try{
     await expect(page.locator('.el-table__body tbody tr').first()).not.toHaveText(previous)
   }
   await target.click()
-  await page.getByTestId('match-history').locator('.el-table__body tbody tr').first().click()
+  await page.getByRole('tab',{name:'匹配结果',exact:true}).click();const selector=page.locator('.match-controls .el-select');await selector.click();await page.getByRole('option').filter({hasText:new Date(historic.data.created_at*1000).toLocaleString()}).first().click()
   await expect(page.getByText('这是已失效规则生成的历史结果，请发起新匹配；不要将旧分组和分数当成当前结论',{exact:true})).toBeVisible()
   await mkdir('../data/screenshots',{recursive:true})
   await page.getByTestId('match-detail').screenshot({path:'../data/screenshots/year-review-old-rule.png'})

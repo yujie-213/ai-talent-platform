@@ -17,14 +17,14 @@ await page.route('**/api/**', async route => {
   else if (path === '/api/auth/me') data = {id:'synthetic-user',username:'synthetic.hr',grants:['talent.read','file.read','task.run'].map(action => ({action,scope:'external_all',scope_id:null}))}
   else if (path === '/api/workbench') data = {people:{},parse_tasks:{},match_entries:{},assessments:{},definitions:{}}
   else if (path === '/api/catalog') data = {departments:[],positions:[],department_positions:[],pools:[]}
-  else if (path === '/api/candidates') data = {items:[],total:0}
+  else if (path === '/api/candidates') data = {items:[{...talent,tags:[],index_state:'ready'}],total:1}
   else if (path === '/api/imports') data = []
   else if (path === '/api/assessments/assignments') data = {items:[],total:0}
   else if (path.endsWith('/extraction')) data = null
   else if (path === '/api/talents') data = {items:[talent],total:1}
   else if (path === `/api/talents/${talent.id}`) data = talent
   else if (path === `/api/talents/${talent.id}/files`) data = [{id:'synthetic-file',original_name:'synthetic.png',size:100}]
-  else if (path === '/api/files/synthetic-file/test-tasks') {
+  else if (path === '/api/files/synthetic-file/parse') {
     data = {id:newId,state:'queued',run_version:1,result:null,error_code:null,attempts:[]}
     tasks.push(data)
   } else if (path === '/api/tasks') {
@@ -45,7 +45,7 @@ try {
   await page.locator('input').nth(1).fill('synthetic-ui-password')
   await page.getByRole('button',{name:'登录',exact:true}).click()
   await page.getByRole('heading',{name:'工作台',exact:true}).waitFor()
-  await page.getByRole('button',{name:'任务记录',exact:true}).click()
+  await page.getByRole('button',{name:'解析任务',exact:true}).click()
   const table = page.getByTestId('task-table'), pager = page.getByTestId('task-pagination')
   await expect(page.getByTestId('task-total')).toHaveText('共 61 条任务')
   await expect(table.locator('.el-table__body tbody tr')).toHaveCount(20)
@@ -58,10 +58,11 @@ try {
   await table.getByRole('button',{name:'查看',exact:true}).click()
   await expect(page.getByTestId('focused-task-id')).toHaveText('synthetic-task-060')
 
-  await page.getByRole('button',{name:'人才档案',exact:true}).click()
-  await page.getByText(talent.name,{exact:true}).click()
-  await page.locator('.talent-drawer').getByRole('button',{name:'测试成功',exact:true}).click()
-  await expect(page.locator('.talent-drawer')).toBeHidden()
+  for(let i=0;i<3;i++)await pager.locator('.btn-prev').click();await expect(table).toContainText('synthetic-task-000')
+  await page.getByRole('button',{name:'人才画像',exact:true}).click()
+  await page.getByRole('button',{name:'查看画像',exact:true}).click();await page.getByRole('tab',{name:'来源文件',exact:true}).click()
+  await page.locator('.profile-workspace').getByRole('button',{name:'解析简历',exact:true}).click()
+  await expect(page.locator('.profile-workspace')).toBeHidden()
   await expect(page.getByTestId('task-total')).toHaveText('共 62 条任务')
   await expect(page.getByTestId('focused-task-id')).toHaveText(newId)
   await expect(table).not.toContainText(newId)

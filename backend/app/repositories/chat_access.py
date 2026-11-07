@@ -9,7 +9,7 @@ from app.schemas.chat import Scope
 def scope_ids(db, user, scope: Scope) -> list[str]:
     candidate_filters.authorize(db,user,scope.filters)
     query = select(Talent.id).where(scope_clause(db,user,'talent.read'), scope_clause(db,user,'chat.use'),
-        *candidate_filters.conditions(scope.filters))
+        *candidate_filters.conditions(scope.filters, db, user))
     if scope.kind == 'selected':
         # 显式空选择永久保持空，绝不隐式转成全部。
         for tid in set(scope.ids):

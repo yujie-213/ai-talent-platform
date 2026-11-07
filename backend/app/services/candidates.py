@@ -8,10 +8,11 @@ from app.services.business import row
 from app.repositories import candidate_filters
 
 
-def page(db, user, offset: int, limit: int, kind: str = '', skill: str = '', education: str = '', experience: str = '', sort: str = 'name_asc', requirement_id: str = '') -> dict:
-    filters={'kind':kind,'skill':skill,'education':education,'experience':experience,'requirement_id':requirement_id}
+def page(db, user, offset: int, limit: int, kind: str = '', skill: str = '', education: str = '', experience: str = '', sort: str = 'name_asc', requirement_id: str = '', minimum_education: str = '', minimum_experience_years: float | None = None) -> dict:
+    filters={'kind':kind,'skill':skill,'education':education,'experience':experience,'requirement_id':requirement_id,
+        'minimum_education': minimum_education, 'minimum_experience_years': str(minimum_experience_years) if minimum_experience_years is not None else ''}
     candidate_filters.authorize(db,user,filters)
-    conditions = [scope_clause(db, user, 'talent.read'),*candidate_filters.conditions(filters)]
+    conditions = [scope_clause(db, user, 'talent.read'),*candidate_filters.conditions(filters, db, user)]
     where = and_(*conditions)
     total = db.scalar(select(func.count()).select_from(Talent).where(where))
     order = {'name_asc': Talent.name.asc(), 'name_desc': Talent.name.desc(), 'version_desc': Talent.version.desc()}[sort]

@@ -14,8 +14,12 @@ import hashlib
 def public_user(user: User) -> dict:
     return {k: v for k, v in row(user).items() if k != 'password_hash'}
 
-def detail(db: DbSession, talent) -> dict:
-    return {**row(talent), 'facts': [row(f) for f in talent_facts(db, talent.id)], 'field_states': [row(s) for s in db.scalars(select(TalentFieldState).where(TalentFieldState.talent_id == talent.id))], 'history': [row(h) for h in talent_history(db, talent.id)]}
+def detail(db: DbSession, talent, user: User | None = None) -> dict:
+    facts = [row(f) for f in talent_facts(db, talent.id)]
+    if user:
+        from app.repositories.fact_sources import attach_sources
+        facts = attach_sources(db, user, talent, facts)
+    return {**row(talent), 'facts': facts, 'field_states': [row(s) for s in db.scalars(select(TalentFieldState).where(TalentFieldState.talent_id == talent.id))], 'history': [row(h) for h in talent_history(db, talent.id)]}
 CATALOG = {'departments': Department, 'positions': Position, 'department_positions': DepartmentPosition, 'pools': Pool}
 
 def login(body: Login, request_id: str, db: DbSession) -> dict:
@@ -177,7 +181,7 @@ def get_talent(talent_id: str, request_id: str, user: User, db: DbSession) -> di
     obj = talent_access(db, user, 'talent.read', talent_id)
     audit(db, user, 'talent.read', obj.id, request_id)
     db.commit()
-    return detail(db, obj)
+    return detail(db, obj, user)
 
 def edit_talent(talent_id: str, body: TalentUpdate, request_id: str, user: User, db: DbSession) -> dict:
     obj = talent_access(db, user, 'talent.write', talent_id)

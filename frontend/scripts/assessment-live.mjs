@@ -16,11 +16,12 @@ for(const [action,scope] of additions)if(!grants.some(g=>g.action===action&&g.sc
 if(grants.length!==role.grants.length)await api(`/admin/roles/${role.id}/grants`,'PUT',{version:role.version,grants},admin)
 const browser=await chromium.launch({channel:'msedge',headless:true}), errors=[]
 const suffix=Date.now(), title=`合成页面测评 ${suffix}`, questionTitle=`合成判断题 ${suffix}`
-async function open(name,password){const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await page.locator('input').nth(0).fill(name);await page.locator('input').nth(1).fill(password);await page.getByRole('button',{name:'登录',exact:true}).click();await expect(page.getByRole('heading',{name:'工作台',exact:true})).toBeVisible();return {page,context}}
+async function open(name,password){const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await page.locator('input').nth(0).fill(name);await page.locator('input').nth(1).fill(password);await page.getByRole('button',{name:'登录',exact:true}).click();await expect(page.getByRole('heading',{name:/^(工作台|我的工作台|管理工作台)$/,exact:true})).toBeVisible();return {page,context}}
 async function select(page,form,label,text){await form.locator('.el-form-item').filter({has:page.locator('.el-form-item__label').filter({hasText:label})}).locator('.el-select').click();await page.getByRole('option',{name:text,exact:true}).click()}
 try{
   const {page,context}=await open('demo.hr',demoPassword)
   await page.getByRole('button',{name:'轻量测评',exact:true}).click()
+  await page.getByRole('tab',{name:'题库维护',exact:true}).click()
   await page.getByRole('button',{name:'新增题目',exact:true}).click()
   const dialog=page.getByRole('dialog',{name:'维护题目'}), form=dialog.locator('form')
   await form.locator('textarea').fill(questionTitle)
@@ -43,10 +44,12 @@ try{
   // 分配表单通过页面操作；后端选择器仅给当前授权内已绑定启用员工。
   const employees=await api('/assessments/employees','GET',undefined,hr), target=employees.find(e=>e.username==='demo.employee')
   if(!target)throw new Error('合成员工未绑定或无分配权限')
+  await page.getByRole('tab',{name:'分配测评',exact:true}).click()
   const box=page.locator('.el-card').filter({has:page.getByRole('heading',{name:'分配测评',exact:true})})
   await box.locator('.el-select').nth(0).click();await page.getByRole('option',{name:`${title} · v1`,exact:true}).click()
   await box.locator('.el-select').nth(1).click();await page.getByRole('option',{name:`${target.name} (${target.username})`,exact:true}).click()
   await box.getByRole('button',{name:'分配',exact:true}).click()
+  await page.getByRole('tab',{name:'任务与成绩',exact:true}).click();await page.getByRole('button',{name:'刷新',exact:true}).click()
   await expect(page.locator('.el-table__row').filter({hasText:title}).last()).toContainText('待参与')
   const task=(await api('/assessments/assignments','GET',undefined,employee)).items.find(t=>t.title===title)
   if(!task)throw new Error('未找到实际分配任务')
@@ -54,7 +57,7 @@ try{
   if(JSON.stringify(body).includes('correct'))throw new Error('标准答案泄漏')
   await context.close()
   const emp=await open('demo.employee',demoPassword)
-  await emp.page.getByRole('button',{name:'轻量测评',exact:true}).click()
+  await emp.page.getByRole('button',{name:'我的测评',exact:true}).click()
   await emp.page.locator('.el-table__row').filter({hasText:title}).getByRole('button',{name:'答题 / 查看'}).click()
   const drawer=emp.page.getByRole('dialog',{name:'测评答题与结果'})
   await drawer.getByText('合成正确选项',{exact:true}).click()
@@ -68,9 +71,10 @@ try{
   await emp.context.close()
   const adm=await open('admin',adminPassword)
   await expect(adm.page.getByRole('button',{name:'轻量测评',exact:true})).toHaveCount(0)
+  await adm.page.getByRole('button',{name:'系统管理',exact:true}).click()
   await adm.page.getByRole('button',{name:'角色与菜单权限',exact:true}).click()
-  await expect(adm.page.getByRole('heading',{name:'角色、功能与数据范围',exact:true})).toBeVisible()
-  await expect(adm.page.getByText('合成HR · v',{exact:false})).toBeVisible()
+  await expect(adm.page.getByRole('heading',{name:'角色与菜单权限',exact:true})).toBeVisible()
+  await adm.page.locator('.role-list').getByRole('button',{name:/合成HR/}).click();await expect(adm.page.locator('.role-editor')).toContainText('合成HR')
   await adm.page.screenshot({path:'../data/stage-four/role-management.png',fullPage:true})
   await adm.context.close()
   if(errors.length)throw new Error(errors.join('\n'))

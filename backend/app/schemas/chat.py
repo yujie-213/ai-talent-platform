@@ -6,14 +6,21 @@ from app.schemas.inputs import Input
 class Scope(Input):
     kind: Literal['selected', 'filtered', 'authorized']
     ids: list[str] = Field(default_factory=list, max_length=1000)
-    filters: dict[str, str] = Field(default_factory=dict, max_length=5)
+    filters: dict[str, str] = Field(default_factory=dict, max_length=7)
 
     @model_validator(mode='after')
     def validate_filter(self):
-        if set(self.filters) - {'kind', 'skill', 'education', 'experience', 'requirement_id'} or any(len(v)>100 for v in self.filters.values()):
+        if set(self.filters) - {'kind', 'skill', 'education', 'experience', 'requirement_id', 'minimum_education', 'minimum_experience_years'} or any(len(v)>100 for v in self.filters.values()):
             raise ValueError('筛选字段无效')
         if self.filters.get('kind', '') not in ('', 'internal', 'external'):
             raise ValueError('身份无效')
+        if self.filters.get('minimum_education', '') not in ('', '高中', '大专', '本科', '硕士', '博士'):
+            raise ValueError('学历条件无效')
+        if self.filters.get('minimum_experience_years'):
+            import math
+            years = float(self.filters['minimum_experience_years'])
+            if not math.isfinite(years) or not 0 <= years <= 80:
+                raise ValueError('总工作年限须为0至80年')
         if self.kind != 'selected' and self.ids:
             raise ValueError('只有勾选范围接受人才编号')
         return self

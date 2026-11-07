@@ -13,7 +13,7 @@ try{
  let [a,b]=await Promise.all([get('/chat/jobs/'+report.exact_job),get('/chat/jobs/'+report.single_job)])
  const [ca,cb]=await Promise.all([get('/chat/conversations/'+a.conversation_id),get('/chat/conversations/'+b.conversation_id)])
  a=await get('/chat/jobs/'+ca.messages.at(-1).job.id)
- await page.getByRole('button',{name:'档案聊天',exact:true}).click()
+ await page.getByRole('button',{name:'问答与历史',exact:true}).click()
  let intercepted=false
  await page.route(`**/api/chat/jobs/${a.id}`,async route=>{intercepted=true;const response=await route.fetch();await new Promise(resolve=>setTimeout(resolve,2000));await route.fulfill({response}).catch(()=>{})})
  async function open(c){await page.locator('.el-select').first().click();await page.getByRole('option',{name:`${new Date(c.created_at*1000).toLocaleString()} · ${c.scope.ids.length}人`,exact:true}).first().click()}
@@ -21,7 +21,7 @@ try{
  await open(cb);await expect(page.getByTestId('chat-job')).toContainText(b.id)
  await new Promise(resolve=>setTimeout(resolve,2500))
  await expect(page.getByTestId('chat-job')).toContainText(b.id);await expect(page.getByTestId('chat-job')).not.toContainText(a.id)
- await expect(page.getByTestId('chat-job')).toContainText('该轮固定范围 1 人')
+ await expect(page.getByTestId('chat-job')).toContainText('本轮固定范围 1 人')
  if(!intercepted)throw new Error('未实际注入迟到响应')
  await writeFile('../data/stage-four/chat-late-browser.json',JSON.stringify({passed:true,real_backend_responses:true,injected_transport_delay_ms:2000,stale_view_response_ignored:true},null,2))
  console.log('真实响应+明确2秒网络延迟注入：迟到会话结果未串入新范围')

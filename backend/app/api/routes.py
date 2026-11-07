@@ -110,8 +110,10 @@ def import_batch(batch_id: UUID, request: Request, user=Depends(current_user), d
 def candidate_page(request: Request, user=Depends(current_user), db=Depends(get_db),
                    offset: int=Query(0, ge=0), limit: int=Query(20, ge=1, le=100),
                    kind: str=Query('', pattern='^(internal|external)?$'),
-                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100), sort: str=Query('name_asc', pattern='^(name_asc|name_desc|version_desc)$'),requirement_id: str=Query('',max_length=36)):
-    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience, sort,requirement_id))
+                   skill: str=Query('', max_length=100), education: str=Query('', max_length=100), experience: str=Query('', max_length=100), sort: str=Query('name_asc', pattern='^(name_asc|name_desc|version_desc)$'),requirement_id: str=Query('',max_length=36),
+                   minimum_education: str=Query('',pattern='^(|高中|大专|本科|硕士|博士)$'),
+                   minimum_experience_years: float | None=Query(None,ge=0,le=80,allow_inf_nan=False)):
+    return response(request, candidates.page(db, user, offset, limit, kind, skill, education, experience, sort,requirement_id,minimum_education,minimum_experience_years))
 
 
 @router.post('/files/{file_id}/parse', status_code=202)

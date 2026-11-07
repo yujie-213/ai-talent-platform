@@ -24,18 +24,8 @@ PERMANENT = {'AUTHORIZATION_REVOKED', 'PROFILE_EMPTY', 'EMBEDDING_REBUILD_REQUIR
 
 def fact_snapshot(db, user, talent: Talent) -> list[dict]:
     facts = [row(f) for f in db.scalars(select(Fact).where(Fact.talent_id == talent.id).order_by(Fact.id).with_for_update())]
-    if not allowed(db,user,'file.read',talent):
-        return facts
-    sources = list(db.execute(select(ResumeRecord,Task).join(Task,Task.id==ResumeRecord.task_id)
-        .join(File,File.id==Task.file_id).where(Task.talent_id==talent.id,File.talent_id==talent.id,Task.state=='succeeded')))
-    for fact in facts:
-        for record,task in sources:
-            if fact['source_type']!='resume' or record.base_version+1!=fact['source_version'] or not record.validated:
-                continue
-            for field in record.validated.get('fields',[]):
-                if field['category']==fact['category'] and field['value']==fact['content']:
-                    fact.update(source_file_id=task.file_id,source_task_id=task.id,locator=field['locator'],quote=field['quote'])
-    return facts
+    from app.repositories.fact_sources import attach_sources
+    return attach_sources(db, user, talent, facts)
 
 
 def visible_entry(db,user,entry:MatchEntry) -> dict:

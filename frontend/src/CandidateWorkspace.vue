@@ -48,7 +48,8 @@ function sliceActive(key:string){
   return false
 }
 function applySlice(key:string){
-  if(key==='all'){filters.value.kind=props.profileMode?'':'external';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
+  // 「全部人才」= 清空身份与学历年限限制；简历筛选页默认只显示外部候选人，因此这里必须设为空而不是重置回 external。
+  if(key==='all'){filters.value.kind='';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
   if(key==='external'){filters.value.kind='external';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
   if(key==='internal'){filters.value.kind='internal';filters.value.minimum_education='';filters.value.minimum_experience_years=''}
   if(key==='master')filters.value.minimum_education='硕士'

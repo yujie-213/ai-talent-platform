@@ -2,6 +2,7 @@
 import {ref,computed,onMounted} from 'vue'
 import type {Api} from './api'
 import AppIcon from './AppIcon.vue'
+import MiniDonut from './MiniDonut.vue'
 interface RequirementSummary {id:string;title:string;department:string;status:string;active_version:number|null}
 interface MatchSummary {id:string;requirement_id:string;title:string;requirement_version:number;created_at:number;state:string;total:number;stale:boolean;counts:Record<string,number>}
 interface Summary {people:Record<string,number>;parse_tasks:Record<string,number>;assessments:Record<string,number>;requirements:Record<string,number>;recent_requirements:RequirementSummary[];recent_matches:MatchSummary[]}
@@ -12,19 +13,22 @@ const available=(key:string)=>props.shortcuts?.some(s=>s.key===key)
 const count=(group:keyof Summary,state:string)=>Number((data.value?.[group] as Record<string,number>|undefined)?.[state]||0)
 // 指标卡的图形都来自真实计数：没有可对比的分母时返回 null，前端不画进度条，避免编造比例。
 const pct=(part:number,whole:number)=>whole>0?Math.round(part/whole*100):null
-interface Card {label:string;value:number;note:string;key:string;tone:string;icon:string;ratio:number|null}
+interface Segment {label:string;value:number;color:string}
+interface Card {label:string;value:number;note:string;key:string;tone:string;icon:string;ratio:number|null;segments?:Segment[];legend?:Segment[]}
 const cards=computed<Card[]>(()=>{
   const external=count('people','external'),internal=count('people','internal'),people=external+internal
   const active=count('requirements','active'),draft=count('requirements','draft'),disabled=count('requirements','disabled')
   const queued=count('parse_tasks','queued'),running=count('parse_tasks','running'),failed=count('parse_tasks','failed'),parsed=count('parse_tasks','succeeded')
   const pending=count('assessments','pending'),answering=count('assessments','answering'),submitted=count('assessments','submitted'),completed=count('assessments','completed')
+  // 内外部分布是「构成」而不是「进度」，用环形图呈现；其他卡片仍用占比条。
+  const peopleSegments:Segment[]=[{label:'外部',value:external,color:'#2f5bea'},{label:'内部',value:internal,color:'#0f766e'}]
   if(props.mode==='self')return [
     {label:'本人档案',value:people,note:'当前绑定与授权内',key:'talents',tone:'blue',icon:'people',ratio:null},
     {label:'待参与测评',value:pending+answering,note:`待参与 ${pending} · 作答中 ${answering}`,key:'assessments',tone:'violet',icon:'check',ratio:pct(pending+answering,pending+answering+submitted+completed)},
     {label:'已完成测评',value:completed,note:'查看成绩与历史记录',key:'assessments',tone:'teal',icon:'check',ratio:pct(completed,pending+answering+submitted+completed)}
   ]
   return [
-    {label:'授权人才',value:people,note:`外部 ${external} · 内部 ${internal}`,key:'talents',tone:'blue',icon:'people',ratio:pct(external,people)},
+    {label:'授权人才',value:people,note:`外部 ${external} · 内部 ${internal}`,key:'talents',tone:'blue',icon:'people',ratio:null,segments:peopleSegments,legend:peopleSegments},
     {label:'有效岗位',value:active,note:`草稿 ${draft} · 停用 ${disabled}`,key:'requirements',tone:'teal',icon:'case',ratio:pct(active,active+draft+disabled)},
     {label:'处理中解析',value:queued+running,note:`排队 ${queued} · 执行 ${running}${failed?` · 失败 ${failed}`:''}`,key:'tasks',tone:failed?'rose':'amber',icon:'file',ratio:pct(queued+running,queued+running+failed+parsed)},
     {label:'待参与测评',value:pending+answering,note:`待参与 ${pending} · 作答中 ${answering}`,key:'assessments',tone:'violet',icon:'check',ratio:pct(pending+answering,pending+answering+submitted+completed)}
@@ -52,12 +56,14 @@ onMounted(load)
   <el-alert v-if="error" :title="error" type="error" :closable="false"><el-button @click="load">重试</el-button></el-alert>
 
   <div v-if="mode!=='admin'" v-loading="loading" class="kpi-grid">
-    <button v-for="c in cards" :key="c.label" type="button" class="kpi-card" :class="'tone-'+c.tone" @click="emit('navigate',c.key)">
+    <button v-for="c in cards" :key="c.label" type="button" class="kpi-card" :class="['tone-'+c.tone,{'has-donut':!!c.segments}]" @click="emit('navigate',c.key)">
       <div class="kpi-top"><span class="kpi-icon"><AppIcon :name="c.icon"/></span><span class="kpi-label">{{c.label}}</span></div>
       <strong class="kpi-value">{{data?c.value:'—'}}</strong>
-      <span class="kpi-note">{{c.note}}</span>
+      <MiniDonut v-if="c.segments" class="kpi-donut" :segments="c.segments" :size="40" :thickness="7"/>
+      <span v-if="c.legend" class="kpi-legend"><span v-for="l in c.legend" :key="l.label"><i :style="{background:l.color}"/>{{l.label}} {{l.value}}</span></span>
+      <span v-else class="kpi-note">{{c.note}}</span>
       <span v-if="c.ratio!==null" class="kpi-meter" :title="c.note"><i :style="{width:(c.ratio??0)+'%'}"/></span>
-      <span v-else class="kpi-meter is-flat"><i style="width:100%"/></span>
+      <span v-else-if="!c.segments" class="kpi-meter is-flat"><i style="width:100%"/></span>
     </button>
   </div>
   <p v-else class="muted">管理账号、角色和组织资料；此视角仅显示已获授权的管理入口。</p>
@@ -115,7 +121,14 @@ onMounted(load)
 .kpi-icon{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:var(--tone-soft);color:var(--tone)}
 .kpi-label{font-size:12px;color:var(--text-secondary)}
 .kpi-value{font-size:27px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+/* 环形图与数值行垂直对齐，不改变卡片的文字基线。 */
+.kpi-donut{position:absolute;right:14px;top:42px}
+.kpi-card.has-donut .kpi-value{padding-right:50px}
 .kpi-note{font-size:11px;color:var(--text-tertiary)}
+/* 构成类指标用环形图 + 颜色图例，避免用进度条暗示「完成度」。 */
+.kpi-legend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text-secondary)}
+.kpi-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.kpi-legend i{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
 .kpi-meter{display:block;height:4px;border-radius:99px;background:#eceff6;overflow:hidden;margin-top:3px}
 .kpi-meter i{display:block;height:100%;border-radius:99px;background:var(--tone);transition:width .4s ease}
 .kpi-meter.is-flat i{background:var(--border-strong)}

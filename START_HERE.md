@@ -24,7 +24,7 @@
 ## 当前真实状态
 本目录起初只有开发输入。现已建立应用代码与既有GitHub仓库，第一、二、三阶段已由李玉杰验收，第四阶段已实现、完成本机部署和验证，待用户验收；当前状态以 docs/progress.md、docs/handoff.md 为准，启动入口改见 README.md。
 第四阶段执行清单见docs/stage-four.md，页面验收步骤及验证限制见docs/stage-four-verification.md；不自动进入第五阶段或部署公开服务。
-原型不作为实现前置条件，无须再制作原型。
+2026-11-07前端综合重构已按用户指定的prototypes/ai-talent-workspace-v1.html及最新反馈实施并验证，待用户验收；无需再制作一轮原型。当前使用与验证见docs/frontend-rebuild.md。
 
 ## 文档优先级
 用户后续明确决定 > docs/decisions.md 中已确认的新决定 > 冻结 PRD > 技术设计与计划 > 原型参考。

@@ -192,5 +192,13 @@ $env:PYTHONPATH = "$PWD/backend"
 真实DOCX来源链使用`.venv/Scripts/python scripts/verify-chat-file-live.py`，需要已安装的评测依赖`backend/requirements-evaluation.txt`；聊天页面脚本依次读取verify-chat-live与verify-chat-file-live生成的本机合成报告。真实管理写操作为`npm --prefix frontend run test:management-live`，新合成账号最终禁用解绑；`test:chat-late-response`仅注入网络延时，后端响应真实。浏览器工具已锁定Playwright1.65.0以兼容本机Edge原文件下载，更新已有前端依赖执行`npm --prefix frontend ci`，不重装或升级已有浏览器/后台服务。
 
 
-## UI重构试用（2026-11-06）
-当前分支codex/ui-ux-redesign，状态“UI整改待用户试用”。本机打开 http://127.0.0.1:5173，使用既有本机账号（data/local-access.txt，不入Git）；不需要重新seed或迁移。人才卡片→查看档案→右侧AI首次发送→核对来源→关闭回到原筛选。多人/筛选问答在列表旁打开，历史仍在“档案聊天”；岗位JD与匹配仍在同一需求表单。详细映射、命令、替身与限制见[UI重构记录](docs/ui-redesign.md)。
+## 前端综合重构试用（2026-11-07）
+
+当前分支 `codex/ui-ux-redesign`，代码 `b75c098`，状态“待用户验收”。打开 http://127.0.0.1:5173，使用既有本机账号；无需重seed或迁移。完整入口、真实验证与限制见 [综合重构记录](docs/frontend-rebuild.md)。
+
+- 简历筛选：表格筛选/勾选→比较或范围问答→画像/事实来源→返回，保留已应用条件、分页和选择。学历/总工作年限按代码规则，原文包含是单独控件。
+- 人才画像：可筛选列表→完整资料、来源文件、测评记录、修改历史→按需AI；问答与历史可重连原任务。
+- 岗位与匹配：岗位概览/匹配结果/版本历史/编辑JD分区，结果名单与解释就近；新匹配明确确认范围，草稿须人工核对生效。
+- 测评按任务/题库/试卷/分配操作；系统管理统一账号、角色/菜单、组织资料和日志。员工以本人档案/测评为中心，管理员不默认读取人才正文。
+
+本轮入口：frontend目录 `npm run test:frontend-rebuild`（合成API布局/状态）和 `npm run test:frontend-rebuild-live`（真实本机业务）。常用 `test:browser`、`test:stage-three-live`、`test:chat-live`、`test:assessment-live`、`test:management-live`、`test:resume-live`、`test:task-pagination` 已适配新布局。原型保持离线参考身份，不代替正式API或模型效果。

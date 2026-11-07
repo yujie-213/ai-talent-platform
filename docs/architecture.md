@@ -1,3 +1,11 @@
+# 前端综合重构导航（2026-11-07）
+
+当前界面以本节及frontend-rebuild.md为准，下方卡片/弹窗描述是历史。App保留身份、受控API、档案写入/文件/任务编排；CandidateWorkspace复用简历与人才列表，CandidateTable一人一行替代已删除的CandidateCard；ProfileWorkspace拥有画像分区和AI阅读容器，ProfileFacts提供就近来源入口。RequirementWorkspace为可返回的岗位工作页面，MatchWorkspace保留批次、范围和执行版本，列表与解释共享选中状态。AccountWorkspace与CatalogWorkspace拆离App，角色与日志在同一管理域内导航；AssessmentWorkspace按任务、题库、试卷、分配区分职责。
+
+/workbench→services/workbench按原授权返回岗位状态/最近岗位和本人最近匹配的最小元数据；匹配人数仍复用match_tasks.detail。candidate_filters.conditions统一原文条件和最低学历/总年限（复用match_rules v3），candidates.page与chat_access.scope_ids共用。repositories/fact_sources.attach_sources在已授权事实基础上验证file.read及当前Task/File归属，供画像详情和匹配快照共享；画像来源按钮重新读取当前授权详情。无新表/迁移/依赖或架构变化。对应tests/test_frontend_rebuild.py，前端新入口为test:frontend-rebuild / test:frontend-rebuild-live。
+
+---
+
 # 原型对齐补充（2026-11-06）
 
 本轮用户参考R2覆盖上一轮蓝色视觉。App人才详情从drawer改为居中el-dialog，左档案/右embedded ChatWorkspace独立滚动，来源弹窗append-to-body；CandidateWorkspace新增筛选/导入页签。Workbench使用同一真实API呈现四格业务概览及原型双栏布局。接口、授权和任务机制不变；设计差异/验证见ui-prototype-alignment.md。

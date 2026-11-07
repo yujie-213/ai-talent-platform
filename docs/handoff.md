@@ -1,3 +1,26 @@
+# 当前交接：前端综合重构待李玉杰验收
+
+2026-11-07（北京时间）。当前分支 `codex/ui-ux-redesign`，接手HEAD `6d5f821`，本轮代码HEAD `b75c098`。本轮开始工作区干净，业务代码已正常提交；文档随收尾提交，最终HEAD与工作区/远端同步以git log、git status及ls-remote核对，不循环自引用。origin复用既有 yujie-213/ai-talent-platform，公开属性沿用用户此前确认；没有合并main或公开部署应用。
+
+已综合完成简历表格、完整人才画像/来源/问答动线、岗位概览/匹配/版本/统一编辑JD、角色工作台、测评分区和管理域。AGENTS.md §8已加入本轮UI原则；指定v1原型提供视觉与工作区基础，最新文字反馈覆盖其卡片/三列/按钮位置等问题。当前是“已实现、已验证本轮项、待用户验收”，不能写用户已验收或进入第五阶段。
+
+接手先看 [frontend-rebuild.md](frontend-rebuild.md)：模块入口、两条业务链、实际命令、截图口径、失败过程和验收步骤均在该页。`frontend-rebuild-handoff.md`保留用户原始反馈。
+
+- 列表：CandidateWorkspace / CandidateTable，筛选与画像列表复用，20条分页、本页勾选、最近成功条件与requirement_id保留。
+- 画像：ProfileWorkspace / ProfileFacts / App受控处理器，完整工作页面返回原列表/原岗位结果；事实来源点击重新按当前权限读取；AI收起不销毁会话，窄屏按资料/问答聚焦。独立问答与历史仍可连接旧会话/原任务。
+- 岗位：RequirementWorkspace / MatchWorkspace，概览读有效快照、编辑统一JD表单、三态结果与就近证据、对应批次直达、历史与高级规则可查；表单/读取迟到响应有序号屏障。
+- 测评与管理：AssessmentWorkspace、AccountWorkspace、CatalogWorkspace、RoleWorkspace、LogWorkspace；固定试卷与规则评分不变，账号保存仍携带版本，停用有明确确认。
+- 薄适配：candidate_filters统一七项条件，最低学历/总经验复用规则v3；fact_sources共享当前文件归属与文件读权判断；workbench新增岗位/本人最近匹配元数据并复用当前范围计数。无迁移、依赖升级或新AI规则。
+
+实际：生产构建通过；SQLite原匹配/聊天/管理首轮31通过和1个测试请求头失败，修正后新增3通过；末轮新增/管理7通过/23.79秒。隔离MySQL15通过/80.97秒；未把重复轮次累加。真实页面OCR、JD/匹配、聊天/SSE/引用/下载、人工防覆盖、测评、管理和三账号冒烟通过；合成API的布局/分页/409/迟到隔离另列。没有重跑完整164项后端全套或本轮故障强杀，不扩大AI准确率结论。
+
+本机 http://127.0.0.1:5173 / API8000保留。已重载项目API与Worker/dispatcher/indexer，数据库/卷/模型保留；不重跑bootstrap/seed。`scripts/reload-local-api.ps1`只在核对端口进程属于当前项目后重载API，不操作数据库。账号仍在忽略data/local-access.txt，所有证据/报告在忽略data/frontend-rebuild及既有stage目录，勿输出秘密或真实资料。合成业务记录保留；管理测试新增账号已禁用解绑。
+
+后续：由李玉杰按综合重构记录验收两条核心业务链、HR/员工/管理员视角及真实窗口密度；收到问题在本阶段修复。无外部业务阻塞，不自动进入第五阶段。
+
+---
+以下为此前交接历史；与本段冲突以上文为准。
+
 # 当前状态：今晚反馈已归档，下一聊天开展前端综合重构
 
 用户最终澄清：“是这个ai-talent-workspace-v1原型图”。下一轮主要基础明确为prototypes/ai-talent-workspace-v1.html，结合今晚文字反馈、需求及现有功能修订实施；此前把“源文件/AI数字化人才平台-原型图.html”写成主要依据是助手误记，已撤销。表格、画像/问答、岗位入口与空间密度等反馈仍然有效，不能原样照抄问题部分。详见frontend-rebuild-handoff.md。

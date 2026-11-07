@@ -58,7 +58,7 @@ try{
   await context.close()
   const emp=await open('demo.employee',demoPassword)
   await emp.page.getByRole('button',{name:'我的测评',exact:true}).click()
-  await emp.page.locator('.el-table__row').filter({hasText:title}).getByRole('button',{name:'答题 / 查看'}).click()
+  await emp.page.locator('.el-table__row').filter({hasText:title}).getByRole('button',{name:/开始答题|继续作答|查看成绩|查看提交/}).click()
   const drawer=emp.page.getByRole('dialog',{name:'测评答题与结果'})
   await drawer.getByText('合成正确选项',{exact:true}).click()
   await drawer.getByRole('button',{name:'保存草稿',exact:true}).click()

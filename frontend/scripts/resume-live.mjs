@@ -37,8 +37,8 @@ try {
   await drawer.waitFor({state:'hidden'})
   await page.getByRole('button',{name:'简历筛选',exact:true}).click()
   await page.getByRole('tab',{name:'候选人筛选',exact:true}).click()
-  await page.getByPlaceholder('技能包含',{exact:true}).fill('Python')
-  const filtered=page.waitForResponse(r=>r.url().includes('/candidates?'));await page.getByRole('button',{name:'筛选',exact:true}).click();await filtered;await expect(page.locator('.candidate-results .el-loading-mask')).toHaveCount(0)
+  await page.getByPlaceholder(/技能关键词/).fill('Python')
+  const filtered=page.waitForResponse(r=>r.url().includes('/candidates?'));await page.getByRole('button',{name:'查询',exact:true}).click();await filtered;await expect(page.locator('.candidate-results .el-loading-mask')).toHaveCount(0)
   // 合成资料会累积，不能假定目标总在第一页；逐页检查真实分页。
   for(let i=0;i<100 && !(await page.locator('.candidate-table .el-table__body tr').filter({hasText:'页面合成候选人（人工确认）'}).count());i++){
     const next=page.locator('.el-pagination .btn-next');if(await next.isDisabled())break

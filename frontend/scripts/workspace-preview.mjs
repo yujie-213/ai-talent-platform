@@ -25,7 +25,7 @@ try{
  await clean(p);await p.screenshot({path:'../data/workspace/screens/工作台.png',fullPage:true})
  await nav('简历筛选').click();await expect(p.locator('.candidate-table .el-table__body tr')).toHaveCount(20);await expect(p.getByText('共 36 人',{exact:true})).toBeVisible();await clean(p)
  await p.screenshot({path:'../data/workspace/screens/候选人.png',fullPage:true})
- await p.getByPlaceholder('技能包含',{exact:true}).fill('RAG');await p.getByRole('button',{name:'筛选',exact:true}).click()
+ await p.getByPlaceholder(/技能关键词/).fill('RAG');await p.getByRole('button',{name:'查询',exact:true}).click()
  const row=p.locator('.candidate-table .el-table__body tr').filter({hasText:'周奕辰'});await row.getByRole('button',{name:'查看画像',exact:true}).click()
  await expect(p.getByRole('heading',{name:'周奕辰',exact:true})).toBeVisible();await clean(p)
  await p.getByRole('tab',{name:'来源文件',exact:true}).click();await expect(p.locator('.file-row').filter({hasText:'周奕辰_AI应用工程师_简历.pdf'})).toBeVisible()

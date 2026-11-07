@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Api } from './api'
 import CandidateTable from './CandidateTable.vue'
@@ -14,6 +14,21 @@ function toggleChecked(id:string){checkedIds.value=checkedIds.value.includes(id)
 function appliedText(){return Object.entries(appliedFilters.value||{}).filter(([k,v])=>v&&k!=='sort').map(([k,v])=>`${({kind:'身份',skill:'技能',education:'教育',experience:'经历',requirement_id:'应聘需求',minimum_education:'最低学历',minimum_experience_years:'最低总工作年限'} as Record<string,string>)[k]}：${k==='kind'?(v==='external'?'外部候选人':'内部员工'):k==='requirement_id'?(requirements.value.find(r=>r.id===v)?.draft.title||v):v}`).join(' · ')}
 const filters = ref({kind: props.profileMode?'':'external', skill: '', education: '', experience: '', sort: 'name_asc',requirement_id:'',minimum_education:'',minimum_experience_years:''})
 const appliedFilters=ref<typeof filters.value|null>(null)
+const moreOpen=ref(false)
+const chipNames:Record<string,string>={kind:'身份',skill:'技能',education:'教育原文',experience:'经历原文',requirement_id:'应聘岗位',minimum_education:'最低学历',minimum_experience_years:'工作年限'}
+function chipText(key:string,value:string){
+  if(key==='kind')return value==='external'?'外部候选人':'内部员工'
+  if(key==='requirement_id'){const r=requirements.value.find(r=>r.id===value);return r?requirementLabel(r):'指定岗位'}
+  if(key==='minimum_education')return value+'及以上'
+  if(key==='minimum_experience_years')return value+' 年及以上'
+  if(key==='skill'||key==='education'||key==='experience')return `${chipNames[key]}含“${value}”`
+  return `${chipNames[key]}：${value}`
+}
+const chips=computed(()=>Object.entries(appliedFilters.value||{}).filter(([k,v])=>v&&k!=='sort').map(([k,v])=>({key:k,text:chipText(k,v as string)})))
+const moreCount=computed(()=>[filters.value.requirement_id,filters.value.education,filters.value.experience].filter(Boolean).length)
+function apply(){page.value=1;void load()}
+function clearChip(key:string){(filters.value as Record<string,string>)[key]='';apply()}
+function clearAll(){filters.value={kind:props.profileMode?'':'external',skill:'',education:'',experience:'',sort:filters.value.sort,requirement_id:'',minimum_education:'',minimum_experience_years:''};apply()}
 function chatFiltered(){if(!appliedFilters.value)return;const {sort,...scopeFilters}=appliedFilters.value;emit('chat',{kind:'filtered',filters:scopeFilters},{requirement_id:requirements.value.find(r=>r.id===scopeFilters.requirement_id)?requirementLabel(requirements.value.find(r=>r.id===scopeFilters.requirement_id)!):''})}
 const requirements=ref<{id:string;department_id?:string;draft:{title:string}}[]>([])
 function requirementLabel(r:typeof requirements.value[number]){const department=props.departments?.find(d=>d.id===r.department_id)?.name;return (department?department+' · ':'')+(r.draft.title||'未命名需求')}
@@ -76,15 +91,33 @@ onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;cons
   <div class="title-row"><div><h1>{{title||'简历筛选'}}</h1></div><div class="batch-actions"><slot name="actions"/><el-button v-if="canImport" type="primary" @click="activeTab='imports'">＋ 上传简历</el-button></div></div>
   <el-tabs v-if="!profileMode" v-model="activeTab" class="resume-tabs"><el-tab-pane label="候选人筛选" name="candidates"/><el-tab-pane label="导入与解析记录" name="imports"/></el-tabs>
   <div v-show="activeTab==='candidates'" class="candidate-list-page">
-  <el-card v-if="!selfView" class="filter-card"><el-form label-position="top" class="candidate-filters" @submit.prevent="page=1;load()">
-    <el-form-item label="人才身份"><el-select v-model="filters.kind"><el-option label="外部候选人" value="external"/><el-option label="内部员工" value="internal"/><el-option label="全部授权人才" value=""/></el-select></el-form-item>
-    <el-form-item label="技能"><el-input v-model="filters.skill" placeholder="技能包含" clearable/></el-form-item>
-    <el-form-item label="最低学历"><el-select v-model="filters.minimum_education" clearable placeholder="学历不限"><el-option label="不限" value=""/><el-option v-for="degree in ['高中','大专','本科','硕士','博士']" :key="degree" :label="degree+'及以上'" :value="degree"/></el-select></el-form-item><el-form-item label="总工作经验"><el-select v-model="filters.minimum_experience_years" clearable placeholder="年限不限"><el-option label="不限" value=""/><el-option v-for="years in [1,3,5,8,10]" :key="years" :label="years+' 年及以上'" :value="String(years)"/></el-select></el-form-item>    <el-form-item label="排序"><el-select v-model="filters.sort"><el-option label="姓名升序" value="name_asc"/><el-option label="姓名降序" value="name_desc"/><el-option label="档案版本降序" value="version_desc"/></el-select></el-form-item><el-form-item v-if="canRequirements" label="应聘岗位（已关联）" class="linked-job-filter"><el-select v-if="canRequirements" v-model="filters.requirement_id" clearable placeholder="应聘需求（仅显式关联者）" @change="page=1;load()"><el-option v-for="r in requirements" :key="r.id" :label="requirementLabel(r)" :value="r.id"/></el-select></el-form-item><el-form-item label="教育原文"><el-input v-model="filters.education" placeholder="教育原文包含，如本科" clearable/></el-form-item>
-    <el-form-item label="经历原文"><el-input v-model="filters.experience" placeholder="经历原文包含" clearable/></el-form-item>
-
-    <el-form-item label="操作"><el-button type="primary" native-type="submit" :loading="loading">筛选</el-button></el-form-item>
-  </el-form></el-card>
-  <div class="result-toolbar"><div><strong>共 {{ total }} 人</strong><p class="muted" data-testid="applied-filters">{{appliedText()||'当前授权范围'}} · 每页20人</p></div><div v-if="canChat" class="batch-actions"><el-button :disabled="loading||!checkedIds.length" @click="emit('chat',{kind:'selected',ids:[...checkedIds]})">比较 / 问答（{{checkedIds.length}}）</el-button><el-button :disabled="loading||!appliedFilters" @click="chatFiltered">按筛选范围问答</el-button></div></div>
+  <form v-if="!selfView" class="filter-bar" @submit.prevent="apply">
+    <div class="filter-row">
+      <el-input v-model="filters.skill" class="filter-search" placeholder="搜索技能关键词，如 Python" clearable aria-label="技能关键词"/>
+      <el-select v-model="filters.kind" class="filter-item" aria-label="人才身份"><el-option label="外部候选人" value="external"/><el-option label="内部员工" value="internal"/><el-option label="全部授权人才" value=""/></el-select>
+      <el-select v-model="filters.minimum_education" class="filter-item" clearable placeholder="最低学历" aria-label="最低学历"><el-option label="不限学历" value=""/><el-option v-for="degree in ['高中','大专','本科','硕士','博士']" :key="degree" :label="degree+'及以上'" :value="degree"/></el-select>
+      <el-select v-model="filters.minimum_experience_years" class="filter-item" clearable placeholder="工作年限" aria-label="总工作经验"><el-option label="不限年限" value=""/><el-option v-for="years in [1,3,5,8,10]" :key="years" :label="years+' 年及以上'" :value="String(years)"/></el-select>
+      <el-button type="primary" native-type="submit" :loading="loading">查询</el-button>
+      <button type="button" class="filter-toggle" :aria-expanded="moreOpen" @click="moreOpen=!moreOpen">更多筛选<span v-if="moreCount" class="filter-badge">{{moreCount}}</span><span class="chevron" :class="{open:moreOpen}" aria-hidden="true"></span></button>
+    </div>
+    <div v-show="moreOpen" class="filter-more">
+      <el-select v-if="canRequirements" v-model="filters.requirement_id" clearable placeholder="应聘岗位（仅显式关联者）" aria-label="应聘岗位"><el-option v-for="r in requirements" :key="r.id" :label="requirementLabel(r)" :value="r.id"/></el-select>
+      <el-input v-model="filters.education" clearable placeholder="教育原文包含，如本科" aria-label="教育原文"/>
+      <el-input v-model="filters.experience" clearable placeholder="经历原文包含" aria-label="经历原文"/>
+    </div>
+    <div v-if="chips.length" class="filter-chips">
+      <span class="chips-label">已选条件</span>
+      <el-tag v-for="chip in chips" :key="chip.key" closable @close="clearChip(chip.key)">{{chip.text}}</el-tag>
+      <button type="button" class="chip-clear" @click="clearAll">清除全部</button>
+    </div>
+  </form>
+  <div class="result-toolbar">
+    <div class="result-count"><strong>{{total}}</strong><span> 人</span><p class="muted" data-testid="applied-filters">{{appliedText()||'当前授权范围'}} · 每页 20 人</p></div>
+    <div class="result-actions">
+      <el-select v-model="filters.sort" class="sort-select" aria-label="排序方式" @change="apply"><el-option label="姓名升序" value="name_asc"/><el-option label="姓名降序" value="name_desc"/><el-option label="档案版本降序" value="version_desc"/></el-select>
+      <template v-if="canChat"><el-button :disabled="loading||!checkedIds.length" @click="emit('chat',{kind:'selected',ids:[...checkedIds]})">比较 / 问答（{{checkedIds.length}}）</el-button><el-button :disabled="loading||!appliedFilters" @click="chatFiltered">按筛选范围问答</el-button></template>
+    </div>
+  </div>
   <p v-if="canChat" class="muted scope-note">范围问答使用已应用条件下全部 {{total}} 人；勾选限本页。学历和总工作年限仅包含有明确依据的满足者，资料未知不计为满足。</p>
   <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button @click="load">重新加载</el-button></el-alert>
   <div v-loading="loading" class="candidate-results">
@@ -98,5 +131,39 @@ onMounted(async()=>{await load();if(props.canRequirements){try{let offset=0;cons
 </template>
 
 <style scoped>
-.candidate-filters{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:6px 10px}.candidate-filters .el-form-item{margin-bottom:4px;min-width:0}.linked-job-filter{grid-column:span 2}.filter-card{--el-card-padding:14px}.candidate-filters :deep(.el-form-item__label){margin-bottom:4px;line-height:20px;font-size:12px}.requirement-filter-label{font-size:12px;color:var(--text-secondary);margin-right:10px}.result-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 6px}.result-toolbar p{margin:3px 0}.batch-actions{display:flex;flex-wrap:wrap;gap:8px}.batch-actions .el-button{margin:0}.scope-note{margin:4px 0 10px}.candidate-results{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}.candidate-results :deep(.el-table){margin:0}.import-section{margin-top:16px}.import-section>summary{font-weight:600;cursor:pointer}.resume-tabs{margin-bottom:12px}@media(max-width:1150px){.candidate-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.candidate-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.result-toolbar{align-items:flex-start;flex-direction:column}.requirement-filter-label{display:block;margin:0 0 6px}}
+.candidate-list-page{display:flex;flex-direction:column}
+.filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin:0 0 16px}
+.filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-search{flex:1 1 260px;min-width:200px}
+.filter-item{width:150px}
+.filter-toggle{display:inline-flex;align-items:center;gap:4px;background:transparent;border:0;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:6px 2px}
+.filter-toggle:hover{color:var(--accent)}
+.filter-badge{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-size:10px;line-height:1}
+.chevron{width:0;height:0;margin-top:2px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--text-tertiary);transition:transform .15s}
+.chevron.open{transform:rotate(180deg)}
+.filter-more{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.filter-more .el-select{width:230px}
+.filter-more .el-input{width:210px}
+.filter-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chips-label{font-size:12px;color:var(--text-tertiary)}
+.chip-clear{border:0;background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;padding:2px 2px;text-decoration:underline;text-underline-offset:3px}
+.chip-clear:hover{color:var(--accent)}
+.result-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:0 0 12px}
+.result-count{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;min-width:0}
+.result-count strong{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.result-count>span{font-size:13px;color:var(--text-secondary)}
+.result-count p{flex-basis:100%;margin:2px 0 0;font-size:12px}
+.result-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.result-actions .el-button{margin:0}
+.sort-select{width:136px}
+.batch-actions{display:flex;flex-wrap:wrap;gap:8px}
+.batch-actions .el-button{margin:0}
+.scope-note{margin:0 0 10px;font-size:12px}
+.candidate-results{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.candidate-results :deep(.el-table){margin:0}
+.import-section{margin-top:16px}
+.import-section>summary{font-weight:600}
+.resume-tabs{margin-bottom:4px}
+@media(max-width:1150px){.filter-search{flex-basis:100%;max-width:none}.filter-item{width:calc(50% - 4px)}.candidate-results{overflow-x:auto}}
+@media(max-width:760px){.filter-item{width:100%}.result-toolbar{flex-direction:column;gap:10px}.result-actions{width:100%}.sort-select{width:100%}.filter-more .el-select,.filter-more .el-input{width:100%}}
 </style>

@@ -19,6 +19,7 @@ async function open(size={width:1440,height:900},role='hr',scale=1){
   else if(path==='/catalog')data={departments:[{id:'dep',name:'合成研发部',enabled:true,version:1}],positions:[{id:'pos',name:'工程师',enabled:true,version:1}],department_positions:[{id:'dp',department_id:'dep',position_id:'pos',enabled:true,version:1}],pools:[]}
   else if(path==='/workbench')data={people:{external:21},parse_tasks:{queued:1,running:1,failed:1},assessments:{pending:1,completed:1},requirements:{active:1,draft:1},recent_requirements:[{id:'req',title:draft.title,department:'合成研发部',status:'active',active_version:1}],recent_matches:[{...run,title:draft.title,requirement_id:'req',stale:false}]}
   else if(path==='/candidates'||path==='/talents'){const list=url.searchParams.get('skill')?people.slice(0,2):people;const offset=Number(url.searchParams.get('offset')||0);data={items:list.slice(offset,offset+20),total:list.length}}
+  else if(path==='/imports/summary')data={items:[]}
   else if(path==='/imports')data=[]
   else if(/^\/talents\/person-\d+$/.test(path)){const person=people.find(x=>x.id===path.split('/').at(-1));data={...person,version:1,phone:'',email:'',department_id:null,facts:person.tags.map((t,i)=>({...t,id:'fact-'+i,source_type:'manual',source_version:1})),history:[{version:1,created_at:1794000000,changed_fields:['name','facts']}]}}
   else if(path.endsWith('/files'))data=[{id:'file',original_name:'合成来源.pdf',size:1024}]

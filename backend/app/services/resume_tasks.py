@@ -107,6 +107,47 @@ def batch_history(db: DbSession, user: User) -> list[str]:
     return sorted(ids, reverse=True)[:50]
 
 
+def batch_summary(db: DbSession, user: User) -> dict:
+    """批次概览：只聚合本人导入、且当前仍在人才与文件读权内的文件。
+
+    批次本身没有独立时间字段，用该批任务的首次执行时间（Attempt.started_at）近似；
+    队列中尚未执行的任务没有时间，前端显示为待解析。
+    """
+    tasks = db.execute(select(ResumeRecord.batch_id, Task.id, Task.state, Task.file_id)
+        .join(Task, Task.id == ResumeRecord.task_id)
+        .join(File, File.id == Task.file_id)
+        .join(Talent, Talent.id == Task.talent_id).where(Task.created_by == user.id,
+            File.talent_id == Task.talent_id, scope_clause(db, user, 'talent.read'),
+            scope_clause(db, user, 'file.read'))).all()
+    file_ids = [t.file_id for t in tasks]
+    names = {f.id: f.original_name for f in db.scalars(
+        select(File).where(File.id.in_(file_ids)))} if file_ids else {}
+    started = dict(db.execute(select(Attempt.task_id, func.min(Attempt.started_at))
+        .where(Attempt.task_id.in_([t.id for t in tasks])).group_by(Attempt.task_id)).all()) if tasks else {}
+    batches: dict[str, dict] = {}
+
+    def entry(batch_id: str) -> dict:
+        return batches.setdefault(batch_id, {'id': batch_id, 'created_at': None,
+            'total': 0, 'counts': {}, 'names': []})
+
+    for batch_id, task_id, state, file_id in tasks:
+        item = entry(batch_id)
+        item['total'] += 1
+        item['counts'][state] = item['counts'].get(state, 0) + 1
+        if len(item['names']) < 3:
+            item['names'].append(names.get(file_id, ''))
+        if started.get(task_id):
+            item['created_at'] = max(item['created_at'] or 0, started[task_id])
+    # 上传即被拒的文件没有任务，单独计为 rejected，避免“导入 5 份只看到 3 份”。
+    for failure in db.scalars(select(ImportFailure).where(ImportFailure.user_id == user.id)):
+        item = entry(failure.batch_id)
+        item['total'] += 1
+        item['counts']['rejected'] = item['counts'].get('rejected', 0) + 1
+        if len(item['names']) < 3:
+            item['names'].append(failure.name)
+    return {'items': sorted(batches.values(), key=lambda b: b['created_at'] or 0, reverse=True)[:50]}
+
+
 def create_parse(db: DbSession, user: User, file_id: str, key: str, request_id: str) -> dict:
     source = db.get(File, file_id)
     if not source:

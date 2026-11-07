@@ -6,11 +6,11 @@ from app.schemas.inputs import Input
 class Scope(Input):
     kind: Literal['selected', 'filtered', 'authorized']
     ids: list[str] = Field(default_factory=list, max_length=1000)
-    filters: dict[str, str] = Field(default_factory=dict, max_length=7)
+    filters: dict[str, str] = Field(default_factory=dict, max_length=8)
 
     @model_validator(mode='after')
     def validate_filter(self):
-        if set(self.filters) - {'kind', 'skill', 'education', 'experience', 'requirement_id', 'minimum_education', 'minimum_experience_years'} or any(len(v)>100 for v in self.filters.values()):
+        if set(self.filters) - {'kind', 'skill', 'education', 'experience', 'requirement_id', 'minimum_education', 'minimum_experience_years', 'name'} or any(len(v)>100 for v in self.filters.values()):
             raise ValueError('筛选字段无效')
         if self.filters.get('kind', '') not in ('', 'internal', 'external'):
             raise ValueError('身份无效')

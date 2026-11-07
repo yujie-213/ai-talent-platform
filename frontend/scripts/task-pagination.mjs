@@ -18,6 +18,7 @@ await page.route('**/api/**', async route => {
   else if (path === '/api/workbench') data = {people:{},parse_tasks:{},match_entries:{},assessments:{},definitions:{}}
   else if (path === '/api/catalog') data = {departments:[],positions:[],department_positions:[],pools:[]}
   else if (path === '/api/candidates') data = {items:[{...talent,tags:[],index_state:'ready'}],total:1}
+  else if (path === '/api/imports/summary') data = {items:[]}
   else if (path === '/api/imports') data = []
   else if (path === '/api/assessments/assignments') data = {items:[],total:0}
   else if (path.endsWith('/extraction')) data = null

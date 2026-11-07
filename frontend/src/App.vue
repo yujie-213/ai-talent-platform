@@ -27,7 +27,7 @@ interface Fact {id?:string;quote?:string;locator?:string;source_task_id?:string;
 interface Talent {id: string; kind: string; name: string; phone: string; email: string; department_id: string | null; department_position_id: string | null; owner_id: string | null; pool_id: string | null; version: number; field_states?: {field:string;confirmed:boolean;source_type:string;source_version:number}[]; facts?: Fact[]; history?: {version: number; actor_id: string; changed_fields: string[]; created_at: number}[]}
 interface CatalogItem {id: string; enabled: boolean; version: number; name?: string; department_id?: string; position_id?: string}
 interface FileItem {id: string; original_name: string; size: number}
-interface Task {id: string; talent_id?: string; retryable?: boolean; state: string; run_version: number; error_code: string | null; result: string | null}
+interface Task {talent_name?: string; file_name?: string; parsed_at?: number | null; id: string; talent_id?: string; retryable?: boolean; state: string; run_version: number; error_code: string | null; result: string | null}
 interface TaskDetail extends Task { attempts: {run_version: number; state: string}[] }
 const auth = ref(''), me = ref<Me | null>(null), page = ref('workbench'), busy = ref(false)
 const login = ref({username: '', password: ''}), talents = ref<Talent[]>([]), total = ref(0), offset = ref(0)
@@ -109,7 +109,7 @@ const requirementEntry=ref<{id:string;runId?:string;serial:number}>()
 async function openRequirement(entry:{id:string;runId?:string}){requirementEntry.value={...entry,serial:Date.now()};await navigate('requirements')}
 const navGroups=computed(()=>[
  {label:'业务工作区',items:[{key:'workbench',name:'工作台',icon:'grid',allowed:true},{key:'candidates',name:'简历筛选',icon:'file',allowed:can('talent.read')&&!selfView.value},{key:'talents',name:selfView.value?'我的档案':'人才画像',icon:'people',allowed:can('talent.read')},{key:'requirements',name:'岗位与匹配',icon:'case',allowed:can('requirement.read')},{key:'assessments',name:selfView.value?'我的测评':'轻量测评',icon:'check',allowed:can('talent.read')||can('assessment.manage')||can('assessment.read')||can('assessment.assign')}]},
- {label:'记录与工具',items:[{key:'chat',name:'问答与历史',icon:'chat',allowed:can('chat.use')},{key:'tasks',name:'解析任务',icon:'clock',allowed:can('talent.read')&&!selfView.value}]},
+ {label:'记录与工具',items:[{key:'tasks',name:'解析任务',icon:'clock',allowed:can('talent.read')&&!selfView.value}]},
  {label:'系统管理',items:[{key:'accounts',name:'账号管理',icon:'people',allowed:can('account.manage')},{key:'roles',name:'角色与菜单权限',icon:'shield',allowed:can('account.manage')},{key:'catalog',name:'基础资料',icon:'grid',allowed:can('catalog.manage')},{key:'audit',name:'操作审计',icon:'clock',allowed:can('audit.read')}]}
 ].map(group=>({...group,items:group.items.filter(item=>item.allowed&&menuVisible(item.key))})).filter(group=>group.items.length))
 const managementItems=computed(()=>navGroups.value.find(g=>g.label==='系统管理')?.items||[])
@@ -147,7 +147,8 @@ onUnmounted(() => clearInterval(timer))
         </el-card>
         <p class="muted" data-testid="task-total">共 {{taskTotal}} 条任务</p>
         <el-table :data="tasks" data-testid="task-table">
-          <el-table-column label="任务编号" width="150"><template #default="s"><UuidShort :id="s.row.id"/></template></el-table-column>
+          <el-table-column label="人才 / 简历" min-width="230" show-overflow-tooltip><template #default="s">{{s.row.talent_name&&s.row.talent_name!=='待解析'?s.row.talent_name+' · ':''}}{{s.row.file_name||'未命名文件'}}</template></el-table-column>
+          <el-table-column label="解析时间" width="190"><template #default="s">{{s.row.parsed_at?new Date(s.row.parsed_at*1000).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'尚未开始'}}</template></el-table-column>
           <el-table-column label="状态" width="92"><template #default="s"><StatusTag :state="s.row.state"/></template></el-table-column>
           <el-table-column label="执行" width="74"><template #default="s">第 {{s.row.run_version}} 次</template></el-table-column>
           <el-table-column label="结果" min-width="170"><template #default="s"><span class="outcome-cell" :class="{'err-text':s.row.state==='failed'}" :title="taskOutcome(s.row)">{{taskOutcome(s.row)}}</span></template></el-table-column>

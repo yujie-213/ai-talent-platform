@@ -8,9 +8,10 @@ from app.services.business import row
 from app.repositories import candidate_filters
 
 
-def page(db, user, offset: int, limit: int, kind: str = '', skill: str = '', education: str = '', experience: str = '', sort: str = 'name_asc', requirement_id: str = '', minimum_education: str = '', minimum_experience_years: float | None = None) -> dict:
+def page(db, user, offset: int, limit: int, kind: str = '', skill: str = '', education: str = '', experience: str = '', sort: str = 'name_asc', requirement_id: str = '', minimum_education: str = '', minimum_experience_years: float | None = None, name: str = '') -> dict:
     filters={'kind':kind,'skill':skill,'education':education,'experience':experience,'requirement_id':requirement_id,
-        'minimum_education': minimum_education, 'minimum_experience_years': str(minimum_experience_years) if minimum_experience_years is not None else ''}
+        'minimum_education': minimum_education, 'minimum_experience_years': str(minimum_experience_years) if minimum_experience_years is not None else '',
+        'name': name}
     candidate_filters.authorize(db,user,filters)
     conditions = [scope_clause(db, user, 'talent.read'),*candidate_filters.conditions(filters, db, user)]
     where = and_(*conditions)

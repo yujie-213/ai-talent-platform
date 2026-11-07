@@ -10,6 +10,7 @@ else if(path==='/api/auth/me')data={id:'synthetic-user',username:'合成布局�
 else if(path==='/api/catalog')data={departments:[],positions:[],department_positions:[],pools:[]}
 else if(path==='/api/workbench')data={people:{external:1},definitions:{}}
 else if(path==='/api/candidates')data={items:[{id:'synthetic-person',name:'合成缩放验证',kind:'external',quality:'manual',index_state:'ready',tags:[]}],total:1}
+else if(path==='/api/imports/summary')data={items:[]}
 else if(path==='/api/imports')data=[]
 else if(path==='/api/talents/synthetic-person')data={id:'synthetic-person',name:'合成缩放验证',kind:'external',phone:'',email:'',version:1,facts:[{category:'experience',content:'合成长履历。'.repeat(300)}]}
 else if(path==='/api/assessments/assignments')data={items:[],total:0}

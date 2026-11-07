@@ -18,6 +18,9 @@ def conditions(filters: dict[str, str], db=None, user=None) -> list:
             TalentRequirement.talent_id==Talent.id,TalentRequirement.requirement_id==filters['requirement_id'])))
     if filters.get('kind'):
         clauses.append(Talent.kind==filters['kind'])
+    if filters.get('name'):
+        # 姓名按字面包含匹配，转义通配符，避免用户输入的 % _ 变成通配。
+        clauses.append(Talent.name.contains(filters['name'].strip(), autoescape=True))
     for category in ('skill','education','experience'):
         if filters.get(category):
             clauses.append(exists(select(Fact.id).where(Fact.talent_id==Talent.id,Fact.category==category,

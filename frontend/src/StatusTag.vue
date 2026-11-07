@@ -9,6 +9,7 @@ const table: Record<string, { label: string; tone: 'ok' | 'wait' | 'progress' | 
   success: { label: '成功', tone: 'ok' },
   completed: { label: '已完成', tone: 'ok' },
   failed: { label: '失败', tone: 'err' },
+  rejected: { label: '上传失败', tone: 'err' },
   denied: { label: '已拒绝', tone: 'err' },
   draft: { label: '草稿', tone: 'muted' },
   active: { label: '有效', tone: 'ok' },

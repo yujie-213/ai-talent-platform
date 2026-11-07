@@ -1,6 +1,6 @@
 """权限相关数据访问；范围的业务含义由 core.security 决定。"""
 from sqlalchemy import select, func, not_, and_
-from app.models.entities import Grant, UserRole, Talent, Fact, TalentHistory, Task, File
+from app.models.entities import Grant, UserRole, Talent, Fact, TalentHistory, Task, File, Attempt
 
 
 def current_task_file(db, task: Task, lock: bool = False) -> File | None:
@@ -35,6 +35,6 @@ def talent_history(db, talent_id: str):
 def task_page(db, condition, offset: int, limit: int):
     # 先按当前人才权限过滤，再分页和计数，避免总数泄露其他范围。
     query = select(Task).join(Talent, Task.talent_id == Talent.id).where(condition)
-    items = list(db.scalars(query.order_by(Task.id).offset(offset).limit(limit)))
+    items = list(db.scalars(query.order_by(select(func.max(Attempt.started_at)).where(Attempt.task_id == Task.id).correlate(Task).scalar_subquery().desc(), Task.id).offset(offset).limit(limit)))
     total = db.scalar(select(func.count()).select_from(Task).join(Talent, Task.talent_id == Talent.id).where(condition))
     return items, total

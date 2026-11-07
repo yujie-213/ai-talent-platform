@@ -11,6 +11,7 @@ else if(path==='/api/catalog')data={departments:[],positions:[],department_posit
 else if(path==='/api/workbench')data={people:{external:42},definitions:{}}
 else if(path==='/api/candidates'){calls.push({offset:u.searchParams.get('offset'),limit:u.searchParams.get('limit')});if(fail)return route.fulfill({status:503,json:{error:{code:'SYNTHETIC_UNAVAILABLE',message:'合成加载失败，请重试'}}});const offset=Number(u.searchParams.get('offset')||0);data={items:people.slice(offset,offset+20),total:42}}
 else if(path==='/api/assessments/assignments')data={items:[],total:0}
+else if(path==='/api/imports/summary')data={items:[{id:'8f3c1a90-9b1e-4a55-9d0f-2c7b6e4a1d33',created_at:1794025200,total:3,counts:{succeeded:2,failed:1},names:['合成简历一.pdf','合成简历二.docx','合成简历三.pdf']},{id:'3a7d92e4-1c6b-4f08-8e21-5d4a9b7c2f10',created_at:1793938800,total:2,counts:{succeeded:2},names:['合成简历四.pdf','合成简历五.pdf']}]}
 else if(path==='/api/imports')data=[]
 else if(path==='/api/chat/conversations')data={items:[]}
 else if(path.startsWith('/api/talents/')){const id=path.split('/').at(-1);if(route.request().method()==='PUT')return route.fulfill({status:409,json:{error:{code:'VERSION_CONFLICT',message:'合成版本冲突，请刷新后核对修改'}}});if(delayProfile&&id==='synthetic-21')await new Promise(r=>setTimeout(r,1500));data={...people.find(t=>t.id===id),phone:'',email:'',version:1,department_id:null,department_position_id:null,owner_id:'synthetic-user',pool_id:null,facts:[{category:'experience',content:'合成完整长履历'.repeat(120),source_type:'file',source_version:1}]}}

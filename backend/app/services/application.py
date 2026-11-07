@@ -260,7 +260,13 @@ def create_task(file_id: str, body: TestTaskInput, request_id: str, user: User, 
 
 def tasks(request_id: str, user: User, db: DbSession, offset: int, limit: int) -> dict:
     items, total = task_page(db, scope_clause(db, user, 'talent.read'), offset, limit)
-    return {'items': [task_data(t) for t in items], 'total': total}
+    # 批量读取元数据，避免每条任务重复查询；文件名需当前文件读权和归属。
+    from sqlalchemy import func
+    names = dict(db.execute(select(Talent.id, Talent.name).where(Talent.id.in_([t.talent_id for t in items]))).all())
+    times = dict(db.execute(select(Attempt.task_id, func.max(Attempt.started_at)).where(Attempt.task_id.in_([t.id for t in items])).group_by(Attempt.task_id)).all())
+    file_rows = db.execute(select(File.id, File.original_name, File.talent_id).join(Talent, Talent.id == File.talent_id).where(File.id.in_([t.file_id for t in items]), scope_clause(db,user,'file.read'))).all()
+    files = {f.id: f for f in file_rows}
+    return {'items': [{**task_data(t), 'talent_name': names.get(t.talent_id), 'file_name': files[t.file_id].original_name if t.file_id in files and files[t.file_id].talent_id == t.talent_id else None, 'parsed_at': times.get(t.id)} for t in items], 'total': total}
 
 
 def task_data(task: Task) -> dict:

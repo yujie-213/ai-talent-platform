@@ -15,6 +15,7 @@ await page.route('**/api/**',async route=>{
   else if(path==='/api/workbench')data={people:{},parse_tasks:{},match_entries:{},assessments:{},definitions:{}}
   else if(path==='/api/catalog')data={departments:[{id:'d',name:'合成研发部'}],positions:[{id:'p',name:'合成工程师'}],department_positions:[{id:'dp',department_id:'d',position_id:'p'}],pools:[]}
   else if(path==='/api/talents'||path==='/api/candidates')data={items:[],total:0}
+  else if(path==='/api/imports/summary')data={items:[]}
   else if(path==='/api/imports')data=[]
   else if(path==='/api/requirements/assist') {
     requestCount++

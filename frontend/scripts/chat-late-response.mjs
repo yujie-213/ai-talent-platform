@@ -16,7 +16,7 @@ try{
  await page.getByRole('button',{name:'问答与历史',exact:true}).click()
  let intercepted=false
  await page.route(`**/api/chat/jobs/${a.id}`,async route=>{intercepted=true;const response=await route.fetch();await new Promise(resolve=>setTimeout(resolve,2000));await route.fulfill({response}).catch(()=>{})})
- async function open(c){await page.locator('.el-select').first().click();await page.getByRole('option',{name:`${new Date(c.created_at*1000).toLocaleString()} · ${c.scope.ids.length}人`,exact:true}).first().click()}
+ async function open(c){await page.locator(`[data-conversation-id="${c.id}"]`).click()}
  const delayed=page.waitForRequest(r=>r.url().endsWith('/chat/jobs/'+a.id));await open(ca);await delayed
  await open(cb);await expect(page.getByTestId('chat-job')).toContainText(b.id)
  await new Promise(resolve=>setTimeout(resolve,2500))

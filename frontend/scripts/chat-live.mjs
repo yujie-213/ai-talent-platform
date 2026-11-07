@@ -21,15 +21,11 @@ try{
  await p.getByRole('button',{name:'问答与历史',exact:true}).click()
  await expect(p.getByRole('heading',{name:'问答与历史',exact:true})).toBeVisible()
  // 页面历史读取真实完整语义结果，逐人展开并点击受控引用。
- await p.locator('.el-select').first().click()
- await p.locator(`.el-select-dropdown__item`).filter({hasText:'3人'}).first().waitFor()
+ await expect(p.locator('[data-conversation-id]').filter({hasText:'3人'}).first()).toBeVisible()
  // 历史按ID选择，避免依赖相同分钟的多个合成会话标签。
- await p.keyboard.press('Escape')
- const options=await p.locator('.el-select').first().locator('input').count()
  const history=await(await ctx.request.get('http://127.0.0.1:8000/api/chat/conversations?limit=100',{headers:{Authorization:'Bearer '+token}})).json()
  const selected=history.data.items.find(c=>c.id===report.conversation_id)
  if(!selected)throw new Error('缺少真实历史会话')
- await p.locator('.el-select').first().click()
  const opened=p.waitForResponse(r=>r.url().endsWith('/chat/conversations/'+report.conversation_id))
  await p.locator(`[data-conversation-id="${report.conversation_id}"]`).click()
  expect((await(await opened).json()).data.id).toBe(report.conversation_id)
@@ -54,7 +50,7 @@ try{
  const fileReport=JSON.parse(await readFile('../data/stage-four/chat-file-live.json','utf8'))
  const fileConversation=(await(await ctx.request.get('http://127.0.0.1:8000/api/chat/conversations/'+fileReport.conversation_id,{headers:{Authorization:'Bearer '+token}})).json()).data
  await p.getByRole('button',{name:'刷新当前权限与记录',exact:true}).click()
- await p.locator('.el-select').first().click();await p.locator(`[data-conversation-id="${fileConversation.id}"]`).click()
+ await p.locator(`[data-conversation-id="${fileConversation.id}"]`).click()
  await expect(p.getByTestId('chat-job')).toContainText(fileReport.job_id)
  await p.locator('.el-collapse-item__header').first().click();await p.getByRole('button',{name:/核对来源记录/}).first().click()
  const fileDialog=p.getByRole('dialog',{name:'当前权限下核对来源'});await expect(fileDialog).toContainText(fileReport.file_name)

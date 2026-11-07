@@ -43,9 +43,8 @@ try{
  const history=(await(await historyResponse).json()).data.items
  const target=history.find(c=>c.id===sample.compare.conversation_id)
  if(!target)throw new Error('缺少真实比较会话')
- const label=`${new Date(target.created_at*1000).toLocaleString()} · 2人`
- const same=history.filter(c=>`${new Date(c.created_at*1000).toLocaleString()} · ${c.scope.ids.length}人`===label)
- await p.locator('.el-select').first().click();await p.getByRole('option',{name:label,exact:true}).nth(same.findIndex(c=>c.id===target.id)).click()
+ // 历史侧栏按ID直接定位，避免依赖相同分钟的多个合成会话标签。
+ await p.locator(`[data-conversation-id="${target.id}"]`).click()
  await expect(p.getByTestId('chat-job')).toContainText(sample.compare.job_id)
  await expect(p.getByTestId('chat-answer')).toContainText('共同点')
  await expect(p.getByTestId('chat-answer')).toContainText('差异')

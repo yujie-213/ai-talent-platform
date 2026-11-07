@@ -84,21 +84,50 @@ async function downloadSource(){await run(async()=>{const file=citation.value?.f
 async function all(){try{await ElMessageBox.confirm('新会话将使用当前全部授权人才。确认使用这个范围？','明确范围',{confirmButtonText:'确认范围',cancelButtonText:'取消'})}catch{return}await run(()=>create({kind:'authorized'}))}
 onMounted(()=>{if(!props.embedded)void run(loadHistory)});onUnmounted(()=>{disposed=true;viewSerial++;cancelStream()})
 </script>
-<template><section class="archive-chat" :class="{embedded}"><div class="chat-reading"><div class="title-row"><div><h2 v-if="embedded">档案问答</h2><h1 v-else>问答与历史</h1><p v-if="!embedded" class="muted">在明确范围内找人、比较、统计与追问；回答可核对来源。</p></div><el-button v-if="!embedded" @click="refresh">刷新当前权限与记录</el-button><el-tag v-else type="success" size="small">只读 · 可核对来源</el-tag></div>
+<template><section class="archive-chat" :class="{embedded}">
+<aside v-if="!embedded" class="chat-history">
+  <div class="chat-history-head"><h2>历史会话</h2><span class="chat-history-count">{{history.length}} 个</span></div>
+  <el-button type="primary" class="chat-history-action" @click="run(()=>create())">新建会话</el-button>
+  <el-button class="chat-history-action" @click="all">全部授权范围</el-button>
+  <div class="chat-history-list">
+    <button v-for="h in history" :key="h.id" type="button" class="chat-history-item" :class="{active:conv?.id===h.id}" :data-conversation-id="h.id" @click="run(()=>open(h.id))">
+      <span class="chat-history-title">{{new Date(h.created_at*1000).toLocaleString()}} · {{h.scope.ids?.length||0}}人</span>
+      <span class="chat-history-preview">{{h.messages.at(-1)?.question||'尚无提问，等待第一次发问'}}</span>
+    </button>
+    <p v-if="!history.length" class="chat-history-empty">暂无历史会话；新建会话后的问答都会留在这里。</p>
+  </div>
+</aside>
+<div class="chat-main"><div class="chat-reading"><div class="title-row"><div><h2 v-if="embedded">档案问答</h2><h1 v-else>问答与历史</h1><p v-if="!embedded" class="muted">在明确范围内找人、比较、统计与追问；回答可核对来源。</p></div><el-button v-if="!embedded" @click="refresh">刷新当前权限与记录</el-button><el-tag v-else type="success" size="small">只读 · 可核对来源</el-tag></div>
 <el-card v-if="embedded" class="chat-scope"><p v-if="scopeLabel">当前人才：<strong>{{scopeLabel}}</strong></p><p>问答范围：{{(conv?.scope||context).kind==='selected'?'明确选中':(conv?.scope||context).kind==='filtered'?'筛选快照':'全部授权快照'}} · {{scopeCount}}</p><p v-if="scopeFilterText()">范围筛选条件：{{scopeFilterText()}}</p><p v-if="conv" class="muted">范围已固定，追问沿用；扩大范围需确认。</p><p v-if="conv && Object.keys(conv.conditions).length" style="white-space:pre-wrap">已明确条件：{{conditionText()}}</p></el-card>
-<div v-else class="scope-bar"><div class="scope-info"><span class="scope-kind">{{(conv?.scope||context).kind==='selected'?'明确选中':(conv?.scope||context).kind==='filtered'?'筛选快照':'全部授权'}}</span><strong>{{scopeCount}}</strong><span v-if="scopeLabel" class="scope-person">· {{scopeLabel}}</span></div><div class="scope-actions"><el-select placeholder="历史会话" style="width:220px" @change="(id:string)=>run(()=>open(id))"><el-option v-for="h in history" :key="h.id" :value="h.id" :data-conversation-id="h.id" :label="`${new Date(h.created_at*1000).toLocaleString()} · ${h.scope.ids?.length||0}人`"/></el-select><el-button @click="all">全部授权范围</el-button><el-button type="primary" @click="run(()=>create())">新建会话</el-button></div></div>
+<div v-else class="scope-bar"><div class="scope-info"><span class="scope-kind">{{(conv?.scope||context).kind==='selected'?'明确选中':(conv?.scope||context).kind==='filtered'?'筛选快照':'全部授权'}}</span><strong>{{scopeCount}}</strong><span v-if="scopeLabel" class="scope-person">· {{scopeLabel}}</span></div></div>
 <p v-if="!embedded&&scopeFilterText()" class="scope-detail">范围筛选条件：{{scopeFilterText()}}</p>
 <p v-if="!embedded&&conv" class="scope-detail">范围已固定，追问沿用；扩大范围需确认<template v-if="Object.keys(conv.conditions).length"> · 已明确条件：{{conditionText()}}</template></p>
 <div v-if="embedded" class="qa-examples"><el-button v-for="example in ((context.ids?.length||0)===1?['有哪些技能和项目证据？','毕业院校是什么？']:['比较这些人才的项目经历','当前范围有多少人？'])" :key="example" @click="question=example">{{example}}</el-button></div><div class="chat-transcript"><el-empty v-if="!embedded&&!conv&&!job" class="chat-empty" description="从一个明确的范围开始提问；回答只使用你已获授权的档案，证据不足会直接说明" :image-size="56"/><el-empty v-if="embedded&&!conv?.messages.length&&!job" description="基于档案证据提问，证据不足时明确说明" :image-size="48"/>
 <article v-for="m in conv?.messages||[]" :key="m.id" :data-job-id="m.job.id" class="chat-round"><div class="question-bubble">{{m.question}}</div><div v-if="m.job.id!==job?.id" class="previous-answer"><p v-if="m.answer" class="pre-line">{{m.answer.text}}</p><el-button text type="primary" @click="run(()=>viewRound(m.job.id))">查看本轮证据与进度</el-button></div></article>
 <el-card v-if="job" data-testid="chat-job"><div class="job-status" role="status"><strong>{{states[job.state]}}</strong> · 本轮固定范围 {{job.scope.ids?.length||0}} 人<span v-if="job.coverage.total!==undefined"> · 已处理 {{job.coverage.processed}} / {{job.coverage.total}} · 信息不足 {{(job.coverage.unknown||0)+(job.coverage.insufficient||0)}} · 失败 {{job.coverage.failed||0}}</span></div><details class="chat-diagnostics"><summary>任务进度与执行详情 · {{states[job.state]}}</summary><p>任务 {{job.id}} · {{states[job.state]}} · 执行版本 {{job.run_version}}</p><p v-if="job.coverage.total!==undefined">覆盖进度 {{job.coverage.processed}} / {{job.coverage.total}}；有证据支持 {{job.coverage.supported||0}}，信息不足 {{(job.coverage.unknown||0)+(job.coverage.insufficient||0)}}，失败 {{job.coverage.failed||0}}</p></details><p class="answer-text" style="white-space:pre-wrap" data-testid="chat-answer">{{streamText||job.answer?.text}}</p><div v-if="job.answer?.citations?.length"><el-button v-for="r in job.answer.citations" :key="r.number" text @click="answerSource(r)">［{{r.number}}］{{r.name}} · 核对来源</el-button></div><p v-if="job.error_code">执行未完成：{{job.error_code}}。断线或失败不会自动重建任务。</p><el-button v-if="disconnected" @click="stream">连接原任务（不重新提问）</el-button><el-button v-if="['failed','succeeded'].includes(job.state)&&job.run_version<3&&(job.error_code || job.coverage.failed)" @click="retry">重试原任务的可恢复失败</el-button><el-button v-if="job.answer?.confirmation_required && conv?.messages.at(-1)?.job.id===job.id" type="primary" @click="send(true)">确认上述范围与判据</el-button>
 <el-collapse><el-collapse-item v-for="e in job.entries" :key="e.id" :title="`${e.name} · 档案v${e.version} · ${states[e.state]||e.state}${e.stale?'（当前资料已变更）':''}`"><p v-if="e.error_code">{{e.error_code}}</p><div v-for="c in e.result?.criteria||[]" :key="c.criterion"><strong>{{c.criterion}}：{{states[c.state]}}</strong><p v-for="r in c.evidence" :key="r.fact_id+r.quote">“{{r.quote}}”<el-button text @click="source(e,r)">核对{{r.source_type==='manual'?'人工事实':'来源记录'}} · v{{r.source_version}}</el-button></p><p v-if="!c.evidence.length" class="muted">没有足够来源支持，不能据此断言具备或不具备。</p></div></el-collapse-item></el-collapse></el-card>
-</div></div><div class="chat-composer"><div class="composer-box"><el-input :id="inputId" v-model="question" aria-label="向当前范围提问" type="textarea" resize="none" :autosize="{minRows:1,maxRows:6}" :placeholder="context.ids?.length===1?'向这份档案提问，如：毕业院校是什么？':'向当前范围提问，如：比较这些人的项目经历'" @keydown.enter.exact.prevent="canSend&&send()"/><div class="composer-bar"><span class="composer-hint" :title="`Enter 发送 · Shift+Enter 换行 · 当前范围 ${scopeCount}`"><span class="hint-keys">Enter 发送</span><span class="hint-sep">·</span><span class="hint-scope">范围 {{scopeCount}}</span></span><el-button class="send-button" type="primary" size="small" :loading="busy" :disabled="!canSend" @click="send()">发送</el-button></div></div><p v-if="!embedded&&!conv&&context.kind==='selected'&&!context.ids?.length" class="muted">请先从人才列表选择范围，或点击“新建全部授权范围会话”。</p></div>
+</div></div><div class="chat-composer"><div class="composer-box"><el-input :id="inputId" v-model="question" aria-label="向当前范围提问" type="textarea" resize="none" :autosize="{minRows:1,maxRows:6}" :placeholder="context.ids?.length===1?'向这份档案提问，如：毕业院校是什么？':'向当前范围提问，如：比较这些人的项目经历'" @keydown.enter.exact.prevent="canSend&&send()"/><div class="composer-bar"><span class="composer-hint" :title="`Enter 发送 · Shift+Enter 换行 · 当前范围 ${scopeCount}`"><span class="hint-keys">Enter 发送</span><span class="hint-sep">·</span><span class="hint-scope">范围 {{scopeCount}}</span></span><el-button class="send-button" type="primary" size="small" :loading="busy" :disabled="!canSend" @click="send()">发送</el-button></div></div><p v-if="!embedded&&!conv&&context.kind==='selected'&&!context.ids?.length" class="muted">请先从人才列表选择范围，或点击“新建全部授权范围会话”。</p></div></div>
 <el-dialog v-model="showCitation" append-to-body title="当前权限下核对来源" width="min(800px,95vw)"><template v-if="citation"><h3>{{citation.name}} · 档案版本 {{citation.profile_version}}</h3><p>来源：{{citation.fact.source_type==='manual'?'人工维护事实':'简历来源记录'}} · 来源版本 {{citation.fact.source_version}}</p><p style="white-space:pre-wrap">{{citation.fact.content}}</p><p v-if="citation.file">原文件：{{citation.file.name}} <el-button @click="downloadSource">下载原文件核对</el-button></p><p v-if="citation.fact.locator">原文位置：{{citation.fact.locator}}</p><blockquote>{{citation.reference.quote}}</blockquote></template><p class="muted">人工事实使用事实记录与版本；不会伪造原文件。文件事实可查看来源任务与位置。</p></el-dialog></section></template>
 
 <style scoped>
-.archive-chat{display:grid;grid-template-rows:minmax(0,1fr) auto;height:calc(100dvh - 104px);min-height:320px;overflow:hidden}
-.archive-chat>.chat-reading{min-height:0;overflow:auto;padding-right:2px}
+.archive-chat{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;height:calc(100dvh - 104px);min-height:320px;overflow:hidden}
+.chat-main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0}
+.chat-main>.chat-reading{min-height:0;overflow:auto;padding-right:2px}
+/* 历史会话侧栏：替代下拉框，会话一目了然可直接切换。 */
+.chat-history{display:flex;flex-direction:column;min-height:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 12px}
+.chat-history-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.chat-history-head h2{margin:0;font-size:14px;font-weight:600}
+.chat-history-count{font-size:11px;color:var(--text-tertiary)}
+.chat-history-action{width:100%;margin:0 0 8px}
+.chat-history-action+.chat-history-action{margin-left:0}
+.chat-history-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+.chat-history-item{display:block;width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:8px 10px;transition:border-color .15s,background .15s}
+.chat-history-item:hover{border-color:var(--accent)}
+.chat-history-item.active{background:var(--accent-soft);border-color:var(--accent)}
+.chat-history-title{display:block;font-size:12px;font-weight:550;color:var(--text);line-height:1.5}
+.chat-history-item.active .chat-history-title{color:var(--accent)}
+.chat-history-preview{display:block;margin-top:3px;font-size:11px;color:var(--text-tertiary);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.chat-history-empty{margin:18px 4px;font-size:12px;color:var(--text-tertiary);line-height:1.7}
 .chat-reading>.el-card{margin-bottom:14px}
 .chat-scope{background:var(--surface-muted);box-shadow:none;border-color:var(--border)}
 .chat-scope p{font-size:12px;color:var(--text-secondary);overflow-wrap:anywhere;margin:4px 0}
@@ -122,7 +151,7 @@ onMounted(()=>{if(!props.embedded)void run(loadHistory)});onUnmounted(()=>{dispo
 .hint-scope{overflow:hidden;text-overflow:ellipsis}
 .send-button{min-height:28px;height:28px;padding:0 14px;border-radius:6px;font-size:12px;flex-shrink:0}
 .chat-composer>p{margin:6px 0 0}
-.embedded{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;min-height:0;overflow:hidden}
+.embedded{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);height:100%;min-height:0;overflow:hidden}
 .embedded .chat-reading{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 2px}
 .embedded .title-row{display:flex;justify-content:space-between;margin:0 0 10px;align-items:center;gap:10px;flex-shrink:0}
 .embedded h2{font-size:14px;margin:0;font-weight:600}
@@ -153,4 +182,5 @@ onMounted(()=>{if(!props.embedded)void run(loadHistory)});onUnmounted(()=>{dispo
 .embedded :deep(.el-empty){padding:28px 8px}
 .embedded .title-row .el-tag{font-size:10px}
 @media(max-height:650px){.embedded .chat-composer{margin-top:8px}.composer-box :deep(.el-textarea__inner){min-height:36px}}
+@media(max-width:900px){.archive-chat{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.chat-history{max-height:200px}.chat-history-list{display:grid;grid-auto-flow:column;grid-auto-columns:220px;overflow-x:auto;overflow-y:hidden}}
 </style>
